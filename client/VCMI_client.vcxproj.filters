@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="AdventureMapClasses.cpp" />
+    <ClCompile Include="BattleInterface\CBattleAnimations.cpp" />
+    <ClCompile Include="BattleInterface\CBattleInterface.cpp" />
+    <ClCompile Include="BattleInterface\CBattleInterfaceClasses.cpp" />
+    <ClCompile Include="BattleInterface\CCreatureAnimation.cpp" />
+    <ClCompile Include="CAdvmapInterface.cpp" />
+    <ClCompile Include="CAnimation.cpp" />
+    <ClCompile Include="..\CCallback.cpp" />
+    <ClCompile Include="CBitmapHandler.cpp" />
+    <ClCompile Include="CCastleInterface.cpp" />
+    <ClCompile Include="CConfigHandler.cpp" />
+    <ClCompile Include="CCreatureWindow.cpp" />
+    <ClCompile Include="CDefHandler.cpp" />
+    <ClCompile Include="CGameInfo.cpp" />
+    <ClCompile Include="CHeroWindow.cpp" />
+    <ClCompile Include="CKingdomInterface.cpp" />
+    <ClCompile Include="Client.cpp" />
+    <ClCompile Include="CMessage.cpp" />
+    <ClCompile Include="CMT.cpp" />
+    <ClCompile Include="CMusicHandler.cpp" />
+    <ClCompile Include="CPlayerInterface.cpp" />
+    <ClCompile Include="CPreGame.cpp" />
+    <ClCompile Include="CSpellWindow.cpp" />
+    <ClCompile Include="CVideoHandler.cpp" />
+    <ClCompile Include="Graphics.cpp" />
+    <ClCompile Include="GUIClasses.cpp" />
+    <ClCompile Include="mapHandler.cpp" />
+    <ClCompile Include="NetPacksClient.cpp" />
+    <ClCompile Include="StdInc.cpp" />
+    <ClCompile Include="UIFramework\CCursorHandler.cpp" />
+    <ClCompile Include="UIFramework\CGuiHandler.cpp" />
+    <ClCompile Include="UIFramework\CIntObject.cpp" />
+    <ClCompile Include="UIFramework\CIntObjectClasses.cpp" />
+    <ClCompile Include="UIFramework\Geometries.cpp" />
+    <ClCompile Include="UIFramework\SDL_Extensions.cpp" />
+    <ClCompile Include="CQuestLog.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Global.h" />
+    <ClInclude Include="AdventureMapClasses.h" />
+    <ClInclude Include="BattleInterface\CBattleAnimations.h" />
+    <ClInclude Include="BattleInterface\CBattleInterface.h" />
+    <ClInclude Include="BattleInterface\CBattleInterfaceClasses.h" />
+    <ClInclude Include="BattleInterface\CCreatureAnimation.h" />
+    <ClInclude Include="CAdvmapInterface.h" />
+    <ClInclude Include="CAnimation.h" />
+    <ClInclude Include="CBitmapHandler.h" />
+    <ClInclude Include="..\CCallback.h" />
+    <ClInclude Include="CCastleInterface.h" />
+    <ClInclude Include="CConfigHandler.h" />
+    <ClInclude Include="CCreatureWindow.h" />
+    <ClInclude Include="CDefHandler.h" />
+    <ClInclude Include="CGameInfo.h" />
+    <ClInclude Include="CHeroWindow.h" />
+    <ClInclude Include="CKingdomInterface.h" />
+    <ClInclude Include="Client.h" />
+    <ClInclude Include="CMessage.h" />
+    <ClInclude Include="CMusicHandler.h" />
+    <ClInclude Include="CPlayerInterface.h" />
+    <ClInclude Include="CPreGame.h" />
+    <ClInclude Include="CSoundBase.h" />
+    <ClInclude Include="CSpellWindow.h" />
+    <ClInclude Include="CVideoHandler.h" />
+    <ClInclude Include="FontBase.h" />
+    <ClInclude Include="FunctionList.h" />
+    <ClInclude Include="Graphics.h" />
+    <ClInclude Include="GUIClasses.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="StdInc.h" />
+    <ClInclude Include="UIFramework\CCursorHandler.h" />
+    <ClInclude Include="UIFramework\CGuiHandler.h" />
+    <ClInclude Include="UIFramework\CIntObject.h" />
+    <ClInclude Include="UIFramework\CIntObjectClasses.h" />
+    <ClInclude Include="UIFramework\Geometries.h" />
+    <ClInclude Include="UIFramework\SDL_Extensions.h" />
+    <ClInclude Include="UIFramework\SDL_Pixels.h" />
+    <ClInclude Include="CQuestLog.h" />
+    <ClCompile Include="CQuestLog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClInclude Include="mapHandler.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="VCMI_client.rc" />
+    <ClInclude Include="CQuestLog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\ChangeLog" />
+    <None Include="vcmi.ico" />
+  </ItemGroup>
+</Project>

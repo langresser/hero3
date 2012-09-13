@@ -1,0 +1,13 @@
+{
+	// Movement costs on different terrains
+	"dirt"     : 100,
+	"sand"     : 150,
+	"grass"    : 100,
+	"snow"     : 150,
+	"swamp"    : 175,
+	"rough"    : 125,
+	"subterra" : 100,
+	"lava"     : 100,
+	"water"    : 100,
+	"rock"     : -1,
+}

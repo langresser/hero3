@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_PropertySheetDisplayName>VCMI_global</_PropertySheetDisplayName>
+    <LibraryPath>D:\Programme\Boost\boost_1_48_0\stage\lib;$(SolutionDir)..\libs\$(PlatformShortName);$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\Programme\Boost\boost_1_48_0;$(SolutionDir)..\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
