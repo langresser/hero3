@@ -333,7 +333,7 @@ CMusicHandler::CMusicHandler():
 	auto fillSet = [=](std::string setName, const std::string list[], size_t amount)
 	{
 		for (size_t i=0; i < amount; i++)
-	        addEntryToSet(setName, i, std::string("music/") + list[i]);
+	        addEntryToSet(setName, i, std::string("mp3/") + list[i]);
 	};
 	fillSet("enemy-turn", setEnemy, ARRAY_COUNT(setEnemy));
 	fillSet("battle", setBattle, ARRAY_COUNT(setBattle));

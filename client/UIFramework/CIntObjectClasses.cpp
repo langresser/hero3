@@ -164,16 +164,20 @@ void CPicture::createSimpleRect(const Rect &r, bool screenFormat, ui32 color)
 
 void CPicture::colorizeAndConvert(int player)
 {
-	assert(bg);
+	if (!bg) {
+		return;
+	}
+
 	colorize(player);
 	convertToScreenBPP();
 }
 
 void CPicture::colorize(int player)
 {
-	assert(bg);
-	assert(bg->format->BitsPerPixel == 8);
-	graphics->blueToPlayersAdv(bg, player);
+	if (bg) {
+		assert(bg->format->BitsPerPixel == 8);
+		graphics->blueToPlayersAdv(bg, player);
+	}
 }
 
 CFilledTexture::CFilledTexture(std::string imageName, Rect position):

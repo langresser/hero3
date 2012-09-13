@@ -721,10 +721,7 @@ void CAdvMapInt::show(SDL_Surface * to)
 	//if advmap needs updating AND (no dialog is shown OR ctrl is pressed)
 	if((animValHitCount % (4/scrollSpeed)) == 0
 		&&  (
-			(GH.topInt() == this)
-			|| SDL_GetKeyState(NULL)[SDLK_LCTRL]
-			|| SDL_GetKeyState(NULL)[SDLK_RCTRL]
-)
+		(GH.topInt() == this) || (SDL_GetModState() & KMOD_LCTRL) || (SDL_GetModState() & KMOD_RCTRL))
 	)
 	{
 		if( (scrollingDir & LEFT)   &&  (position.x>-CGI->mh->frameW) )
@@ -1025,7 +1022,7 @@ void CAdvMapInt::select(const CArmedInstance *sel, bool centerView /*= true*/)
 void CAdvMapInt::mouseMoved( const SDL_MouseMotionEvent & sEvent )
 {
 	//adventure map scrolling with mouse
-	if(!SDL_GetKeyState(NULL)[SDLK_LCTRL]  &&  isActive())
+	if(!(SDL_GetModState() & KMOD_LCTRL)  &&  isActive())
 	{
 		if(sEvent.x<15)
 		{
