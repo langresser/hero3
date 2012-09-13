@@ -663,7 +663,7 @@ static void setScreenRes(int w, int h, int bpp, bool fullscreen, bool resetVideo
 	SDL_ShowCursor(SDL_DISABLE);
 	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 
-#ifdef _WIN32
+#if 0
 	SDL_SysWMinfo wm;
 	SDL_VERSION(&wm.version);
 	int getwm = SDL_GetWMInfo(&wm);

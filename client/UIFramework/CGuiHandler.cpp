@@ -385,7 +385,7 @@ void CGuiHandler::drawFPSCounter()
 	CSDL_Ext::printAt(fps, 10, 10, FONT_BIG, yellow, screen);
 }
 
-SDLKey CGuiHandler::arrowToNum( SDLKey key )
+SDL_Keycode CGuiHandler::arrowToNum( SDL_Keycode key )
 {
 	switch(key)
 	{
@@ -403,10 +403,10 @@ SDLKey CGuiHandler::arrowToNum( SDLKey key )
 	throw std::runtime_error("Wrong key!");
 }
 
-SDLKey CGuiHandler::numToDigit( SDLKey key )
+SDL_Keycode CGuiHandler::numToDigit( SDL_Keycode key )
 {
 	if(key >= SDLK_KP0 && key <= SDLK_KP9)
-		return SDLKey(key - SDLK_KP0 + SDLK_0);
+		return SDL_Keycode(key - SDLK_KP0 + SDLK_0);
 
 #define REMOVE_KP(keyName) case SDLK_KP_ ## keyName : return SDLK_ ## keyName;
 	switch(key)
@@ -429,7 +429,7 @@ SDLKey CGuiHandler::numToDigit( SDLKey key )
 #undef REMOVE_KP
 }
 
-bool CGuiHandler::isNumKey( SDLKey key, bool number )
+bool CGuiHandler::isNumKey( SDL_Keycode key, bool number )
 {
 	if(number)
 		return key >= SDLK_KP0 && key <= SDLK_KP9;
