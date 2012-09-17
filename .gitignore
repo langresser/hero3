@@ -1,0 +1,15 @@
+.svn/
+Data/
+*.tlog
+Debug/
+*.obj
+*.cbp
+*.suo
+*.pdb
+*.idb
+*.pch
+*unsuccessfulbuild
+*.cache
+*.manifest
+*.log
+*.lastbuildstate
