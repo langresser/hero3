@@ -2,6 +2,7 @@
 
 #include "../../lib/CStopWatch.h"
 #include "Geometries.h"
+#include <SDL_compat.h>
 
 class CFramerateManager;
 class IStatusBar;
