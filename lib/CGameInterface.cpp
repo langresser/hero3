@@ -88,17 +88,22 @@ rett * createAnyAI(std::string dllname, std::string methodName)
 
 CGlobalAI * CDynLibHandler::getNewAI(std::string dllname)
 {
-	return createAnyAI<CGlobalAI>(dllname, "GetNewAI");
+	// TODO此处可以加载不同的ai模块
+//	return new VCAI();
+	extern CGlobalAI* GetNewAI();
+	return GetNewAI();
 }
 
 CBattleGameInterface * CDynLibHandler::getNewBattleAI(std::string dllname )
 {
-	return createAnyAI<CBattleGameInterface>(dllname, "GetNewBattleAI");
+	extern CBattleGameInterface* GetNewBattleAI();
+	return GetNewBattleAI();
 }
 
 CScriptingModule * CDynLibHandler::getNewScriptingModule(std::string dllname)
 {
-	return createAny<CScriptingModule>(dllname, "GetNewModule");
+	extern CScriptingModule* GetNewModule();
+	return GetNewModule();
 }
 
 BattleAction CGlobalAI::activeStack( const CStack * stack )

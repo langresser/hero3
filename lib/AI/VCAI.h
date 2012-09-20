@@ -1,23 +1,22 @@
 #pragma once
 
-#include "../../lib/AI_Base.h"
-#include "../../CCallback.h"
-#include "../../lib/CObjectHandler.h"
+#include "lib/AI_Base.h"
+#include "CCallback.h"
+#include "lib/CObjectHandler.h"
 
-#include "../../lib/CThreadHelper.h"
+#include "lib/CThreadHelper.h"
 
-#include "../../lib/VCMI_Lib.h"
-#include "../../lib/CBuildingHandler.h"
-#include "../../lib/CCreatureHandler.h"
-#include "../../lib/CTownHandler.h"
-#include "../../lib/CSpellHandler.h"
-#include "../../lib/CObjectHandler.h"
-#include "../../lib/Connection.h"
-#include "../../lib/CGameState.h"
-#include "../../lib/map.h"
-#include "../../lib/NetPacks.h"
-#include "../../lib/CondSh.h"
-#include "../../lib/CStopWatch.h"
+#include "lib/VCMI_Lib.h"
+#include "lib/CBuildingHandler.h"
+#include "lib/CCreatureHandler.h"
+#include "lib/CTownHandler.h"
+#include "lib/CSpellHandler.h"
+#include "lib/CObjectHandler.h"
+#include "lib/CGameState.h"
+#include "lib/map.h"
+#include "lib/NetPacks.h"
+#include "lib/CondSh.h"
+#include "lib/CStopWatch.h"
 
 struct QuestInfo;
 

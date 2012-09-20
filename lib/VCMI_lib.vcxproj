@@ -34,7 +34,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -97,13 +97,13 @@
       <AdditionalOptions>/MP4 %(AdditionalOptions) /bigobj
 </AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>E:\llvm\3rdframework\sdl\include;E:\llvm\3rdframework\sdl_image;E:\llvm\3rdframework\sdl_ttf;E:\llvm\3rdframework\sdl_mixer;E:\llvm\3rdframework\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\llvm\3rdframework\sdl\include;E:\llvm\3rdframework\sdl_image;E:\llvm\3rdframework\sdl_ttf;E:\llvm\3rdframework\sdl_mixer;E:\llvm\3rdframework\zlib;E:\llvm\hero3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <DisableSpecificWarnings>4251;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4251;4800;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExpandAttributedSource>false</ExpandAttributedSource>
       <AssemblerOutput>NoListing</AssemblerOutput>
       <PreprocessToFile>false</PreprocessToFile>
@@ -113,8 +113,8 @@
       <PreprocessorDefinitions>VCMI_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>E:\llvm\3rdframework\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>zlib.lib;ERM.lib;FuzzyLite.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>E:\llvm\3rdframework\libs;E:\llvm\hero3\Data;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
@@ -220,6 +220,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AI\Fuzzy.cpp" />
+    <ClCompile Include="AI\StupidAI.cpp" />
+    <ClCompile Include="AI\VCAI.cpp" />
     <ClCompile Include="BattleAction.cpp" />
     <ClCompile Include="BattleHex.cpp" />
     <ClCompile Include="BattleState.cpp" />
@@ -271,6 +274,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Global.h" />
+    <ClInclude Include="AI\Fuzzy.h" />
+    <ClInclude Include="AI\StupidAI.h" />
+    <ClInclude Include="AI\VCAI.h" />
     <ClInclude Include="AI_Base.h" />
     <ClInclude Include="BattleAction.h" />
     <ClInclude Include="BattleHex.h" />

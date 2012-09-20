@@ -1,5 +1,5 @@
 #pragma once
-#include "../FuzzyLite/FuzzyLite.h"
+#include "AI/FuzzyLite/FuzzyLite.h"
 
 /*
  * Fuzzy.h, part of VCMI engine

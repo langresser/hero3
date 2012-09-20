@@ -310,3 +310,13 @@ BattleAction CStupidAI::goTowards(const CStack * stack, BattleHex destination)
 	}
 }
 
+
+CBattleGameInterface* GetNewBattleAI()
+{
+	return new CStupidAI();
+}
+
+ void ReleaseBattleAI(CBattleGameInterface* i)
+{
+	delete (CStupidAI*)i;
+}

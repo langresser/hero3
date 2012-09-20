@@ -102,34 +102,8 @@ typedef boost::int8_t si8; //signed int 8 bits (1 byte)
 #define GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__ )
 #endif
 
-// Import + Export macro declarations
-#ifdef _WIN32
-#ifdef __GNUC__
-#define DLL_EXPORT __attribute__((dllexport))
-#else
-#define DLL_EXPORT __declspec(dllexport)
-#endif
-#else
-#if defined(__GNUC__) && GCC_VERSION >= 400
-#define DLL_EXPORT	__attribute__ ((visibility("default")))
-#else
-#define DLL_EXPORT
-#endif
-#endif
-
-#ifdef _WIN32
-#ifdef __GNUC__
-#define DLL_IMPORT __attribute__((dllimport))
-#else
-#define DLL_IMPORT __declspec(dllimport)
-#endif
-#else
-#if defined(__GNUC__) && GCC_VERSION >= 400
-#define DLL_IMPORT	__attribute__ ((visibility("default")))
-#else
 #define DLL_IMPORT
-#endif
-#endif
+#define DLL_EXPORT
 
 #ifdef VCMI_DLL
 #define DLL_LINKAGE DLL_EXPORT
