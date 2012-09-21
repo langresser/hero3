@@ -19,32 +19,6 @@ struct _Mix_Music;
 typedef struct _Mix_Music Mix_Music;
 struct Mix_Chunk;
 
-
-// Sound infos for creatures in combat
-struct CreaturesBattleSounds {
-	soundBase::soundID attack;
-	soundBase::soundID defend;
-	soundBase::soundID killed; // was killed or died
-	soundBase::soundID move;
-	soundBase::soundID shoot; // range attack
-	soundBase::soundID wince; // attacked but did not die
-	soundBase::soundID ext1;  // creature specific extension
-	soundBase::soundID ext2;  // creature specific extension
-	soundBase::soundID startMoving; // usually same as ext1
-	soundBase::soundID endMoving;	// usually same as ext2
-
-	CreaturesBattleSounds(): attack(soundBase::invalid),
-							 defend(soundBase::invalid),
-							 killed(soundBase::invalid),
-							 move(soundBase::invalid),
-							 shoot(soundBase::invalid),
-							 wince(soundBase::invalid),
-							 ext1(soundBase::invalid),
-							 ext2(soundBase::invalid),
-							 startMoving(soundBase::invalid),
-							 endMoving(soundBase::invalid) {};
-};
-
 class CAudioBase {
 protected:
 	bool initialized;
@@ -70,6 +44,7 @@ private:
 	std::map<soundBase::soundID, Mix_Chunk *> soundChunks;
 
 	Mix_Chunk *GetSoundChunk(soundBase::soundID soundID);
+	Mix_Chunk *GetSoundChunk(std::string &sound);
 
 	//have entry for every currently active channel
 	//boost::function will be NULL if callback was not set
@@ -87,13 +62,13 @@ public:
 
 	// Sounds
 	int playSound(soundBase::soundID soundID, int repeats=0);
+	int playSound(std::string sound, int repeats=0);
 	int playSoundFromSet(std::vector<soundBase::soundID> &sound_vec);
 	void stopSound(int handler);
 
 	void setCallback(int channel, boost::function<void()> function);
 	void soundFinishedCallback(int channel);
 
-	std::vector <struct CreaturesBattleSounds> CBattleSounds;
 	std::map<const CSpell*, soundBase::soundID> spellSounds;
 
 	// Sets
@@ -102,8 +77,8 @@ public:
 	std::vector<soundBase::soundID> battleIntroSounds;
 };
 
-// Helper
-#define battle_sound(creature,what_sound) CCS->soundh->CBattleSounds[(creature)->idNumber].what_sound
+// Helper //now it looks somewhat useless
+#define battle_sound(creature,what_sound) creature->sounds.what_sound
 
 class CMusicHandler;
 

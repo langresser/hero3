@@ -20,12 +20,14 @@
 class CLegacyConfigParser;
 class CCreatureHandler;
 class CCreature;
+struct CreaturesBattleSounds;
 
 class DLL_LINKAGE CCreature : public CBonusSystemNode
 {
 public:
 	std::string namePl, nameSing, nameRef; //name in singular and plural form; and reference name
 	TResources cost; //cost[res_id] - amount of that resource
+	std::set<std::string> upgradeNames; //for reference, they are later transformed info ui32 upgrades
 	std::set<ui32> upgrades; // IDs of creatures to which this creature can be upgraded
 	//damage, hp. etc are handled by Bonuses
 	ui32 fightValue, AIValue, growth, hordeGrowth;
@@ -34,6 +36,7 @@ public:
 	std::string abilityText; //description of abilities
 	std::string abilityRefs; //references to abilities, in text format
 	std::string animDefName;
+	std::string advMapDef; //for new creatures only
 	si32 idNumber;
 	si8 faction; //-1 = neutral
 	ui8 doubleWide;
@@ -43,7 +46,28 @@ public:
 	int upperRightMissleOffsetX, rightMissleOffsetX, lowerRightMissleOffsetX, upperRightMissleOffsetY, rightMissleOffsetY, lowerRightMissleOffsetY;
 	double missleFrameAngles[12];
 	int troopCountLocationOffset, attackClimaxFrame;
+	std::string projectile;
 	///end of anim info
+
+	//sound info
+	struct CreaturesBattleSounds
+	{
+		std::string attack;
+		std::string defend;
+		std::string killed; // was killed or died
+		std::string move;
+		std::string shoot; // range attack
+		std::string wince; // attacked but did not die
+		std::string ext1;  // creature specific extension
+		std::string ext2;  // creature specific extension
+		std::string startMoving; // usually same as ext1
+		std::string endMoving;	// usually same as ext2
+
+		template <typename Handler> void serialize(Handler &h, const int version)
+		{
+			h & attack & defend & killed & move & shoot & wince & ext1 & ext2 & startMoving & endMoving;
+		}
+	} sounds;
 
 	bool isItNativeTerrain(int terrain) const;
 	bool isDoubleWide() const; //returns true if unit is double wide on battlefield
@@ -76,15 +100,16 @@ public:
 	{
 		h & static_cast<CBonusSystemNode&>(*this);
 		h & namePl & nameSing & nameRef
-			& cost & upgrades 
+			& cost & upgradeNames & upgrades 
 			& fightValue & AIValue & growth & hordeGrowth
 			& ammMin & ammMax & level
-			& abilityText & abilityRefs & animDefName
+			& abilityText & abilityRefs & animDefName & advMapDef
 			& idNumber & faction
 
 			& timeBetweenFidgets & walkAnimationTime & attackAnimationTime & flightAnimationDistance
 			& upperRightMissleOffsetX & rightMissleOffsetX & lowerRightMissleOffsetX & upperRightMissleOffsetY & rightMissleOffsetY & lowerRightMissleOffsetY
 			& missleFrameAngles & troopCountLocationOffset & attackClimaxFrame;
+		h & sounds & projectile;
 
 		h & doubleWide;
 	}
@@ -126,6 +151,7 @@ public:
 	void buildBonusTreeForTiers();
 	void loadAnimationInfo();
 	void loadUnitAnimInfo(CCreature & unit, std::string & src, int & i);
+	void loadSoundsInfo();
 	void loadStackExp(Bonus & b, BonusList & bl, CLegacyConfigParser &parser);
 	int stringToNumber(std::string & s);//help function for parsing CREXPBON.txt
 

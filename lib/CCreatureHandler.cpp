@@ -148,9 +148,10 @@ std::string CCreature::nodeName() const
 
 bool CCreature::isItNativeTerrain(int terrain) const
 {
-	assert(vstd::contains(VLC->townh->factions, faction));
-	//not good handler dependency
-	return VLC->townh->factions[faction].nativeTerrain == terrain;
+	if (faction > -1)
+		return VLC->townh->factions[faction].nativeTerrain == terrain;
+	else
+		return VLC->townh->factions[0].nativeTerrain == terrain; //FIXME: handle neutral faction properly
 }
 
 int readNumber(int & befi, int & i, int andame, std::string & buf) //helper function for void CCreatureHandler::loadCreatures() and loadUnitAnimInfo()
@@ -257,7 +258,7 @@ static void RemoveAbility(CCreature *cre, const JsonNode &ability)
 
 	Bonus::BonusType ecf = static_cast<Bonus::BonusType>(typeNo);
 
-	Bonus *b = cre->getBonus(Selector::type(ecf));
+	Bonus *b = cre->getBonusLocalFirst(Selector::type(ecf));
 	cre->removeBonus(b);
 }
 
@@ -464,8 +465,9 @@ void CCreatureHandler::loadCreatures()
 		notUsedMonsters += creature.Float();
 	}
 
-	buildBonusTreeForTiers();
 	loadAnimationInfo();
+	loadSoundsInfo();
+
 
 	//reading creature ability names
 	const JsonNode config2(ResourceID("config/bonusnames.json"));
@@ -689,6 +691,49 @@ void CCreatureHandler::loadUnitAnimInfo(CCreature & unit, std::string & src, int
 			break;
 	}
 	i+=2;
+}
+
+void CCreatureHandler::loadSoundsInfo()
+{
+	tlog5 << "\t\tReading config/cr_sounds.json" << std::endl;
+	const JsonNode config(ResourceID("config/cr_sounds.json"));
+
+	if (!config["creature_sounds"].isNull())
+	{
+
+		BOOST_FOREACH(const JsonNode &node, config["creature_sounds"].Vector())
+		{
+			const JsonNode *value;
+			int id;
+
+			value = &node["name"];
+
+			bmap<std::string,int>::const_iterator i = nameToID.find(value->String());
+			if (i != nameToID.end())
+				id = i->second;
+			else
+			{
+				tlog1 << "Sound info for an unknown creature: " << value->String() << std::endl;
+				continue;
+			}
+
+			/* This is a bit ugly. Maybe we should use an array for
+			 * sound ids instead of separate variables and define
+			 * attack/defend/killed/... as indexes. */
+#define GET_SOUND_VALUE(value_name) do { value = &node[#value_name]; if (!value->isNull()) creatures[id]->sounds.value_name = value->String(); } while(0)
+			GET_SOUND_VALUE(attack);
+			GET_SOUND_VALUE(defend);
+			GET_SOUND_VALUE(killed);
+			GET_SOUND_VALUE(move);
+			GET_SOUND_VALUE(shoot);
+			GET_SOUND_VALUE(wince);
+			GET_SOUND_VALUE(ext1);
+			GET_SOUND_VALUE(ext2);
+			GET_SOUND_VALUE(startMoving);
+			GET_SOUND_VALUE(endMoving);
+#undef GET_SOUND_VALUE
+		}
+	}
 }
 
 void CCreatureHandler::loadStackExp(Bonus & b, BonusList & bl, CLegacyConfigParser & parser) //help function for parsing CREXPBON.txt

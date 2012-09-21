@@ -75,7 +75,6 @@ void LibClasses::init()
 	heroh = new CHeroHandler;
 	heroh->loadHeroes();
 	heroh->loadObstacles();
-	heroh->loadPuzzleInfo();
 	tlog0 <<"\tHero handler: "<<pomtime.getDiff()<<std::endl;
 
 	arth = new CArtHandler;
@@ -101,6 +100,9 @@ void LibClasses::init()
 	spellh = new CSpellHandler;
 	spellh->loadSpells();
 	tlog0<<"\tSpell handler: "<<pomtime.getDiff()<<std::endl;
+
+	modh->recreateHandlers(); //load all new creatures parsed in the meantime.
+	//TODO: This should be done every time mod config changes
 
 	IS_AI_ENABLED = false;
 }

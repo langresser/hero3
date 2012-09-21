@@ -1251,11 +1251,15 @@ CCreaturePic::CCreaturePic(int x, int y, const CCreature *cre, bool Big, bool An
 	pos.x+=x;
 	pos.y+=y;
 
-	assert(vstd::contains(CGI->townh->factions, cre->faction));
+	si8 faction = 0;//FIXME: support neutral faction
+	if (vstd::contains(CGI->townh->factions, cre->faction))
+	{
+		faction = cre->faction;
+	}
 	if(Big)
-		bg = new CPicture(CGI->townh->factions[cre->faction].creatureBg130);
+		bg = new CPicture(CGI->townh->factions[faction].creatureBg130);
 	else
-		bg = new CPicture(CGI->townh->factions[cre->faction].creatureBg120);
+		bg = new CPicture(CGI->townh->factions[faction].creatureBg120);
 	bg->needRefresh = true;
 	anim = new CCreatureAnim(0, 0, cre->animDefName, Rect());
 	anim->clipRect(cre->isDoubleWide()?170:150, 155, bg->pos.w, bg->pos.h);
@@ -5018,14 +5022,16 @@ CPuzzleWindow::CPuzzleWindow(const int3 &GrailPos, double discoveredRatio):
 
 	int faction = LOCPLINT->cb->getStartInfo()->playerInfos.find(LOCPLINT->playerID)->second.castle;
 
-	for(int g=0; g<PUZZLES_PER_FACTION; ++g)
+	auto & puzzleMap = CGI->townh->factions[faction].puzzleMap;
+
+	for(int g=0; g<puzzleMap.size(); ++g)
 	{
-		const SPuzzleInfo & info = CGI->heroh->puzzleInfo[faction][g];
+		const SPuzzleInfo & info = puzzleMap[g];
 
 		auto piece = new CPicture(info.filename, info.x, info.y);
 
 		//piece that will slowly disappear
-		if(info.whenUncovered < PUZZLES_PER_FACTION * discoveredRatio)
+		if(info.whenUncovered < GameConstants::PUZZLE_MAP_PIECES * discoveredRatio)
 		{
 			piecesToRemove.push_back(piece);
 			piece->needRefresh = true;

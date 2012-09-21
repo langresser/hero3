@@ -1265,7 +1265,7 @@ void CBattleInterface::bSpellf()
 	else if(spellCastProblem == ESpellCastProblem::MAGIC_IS_BLOCKED)
 	{
 		//Handle Orb of Inhibition-like effects -> we want to display dialog with info, why casting is impossible
-		auto blockingBonus = currentHero()->getBonus(Selector::type(Bonus::BLOCK_ALL_MAGIC));
+		auto blockingBonus = currentHero()->getBonusLocalFirst(Selector::type(Bonus::BLOCK_ALL_MAGIC));
 		if(!blockingBonus)
 			return;;
 		
@@ -1363,6 +1363,7 @@ void CBattleInterface::stackRemoved(int stackID)
 	creAnims.erase(stackID);
 	creDir.erase(stackID);
 
+	redrawBackgroundWithHexes(activeStack);
 	queue->update();
 }
 
@@ -2001,7 +2002,7 @@ void CBattleInterface::activateStack()
 
 	queue->update();
 	redrawBackgroundWithHexes(activeStack);
-	bWait->block(vstd::contains(s->state, EBattleStackState::WAITING)); //block waiting button if stack has been already waiting
+	bWait->block(s->waited()); //block waiting button if stack has been already waiting
 
 	//block cast spell button if hero doesn't have a spellbook
 	ESpellCastProblem::ESpellCastProblem spellcastingProblem;
@@ -2013,8 +2014,8 @@ void CBattleInterface::activateStack()
 
 
 	//set casting flag to true if creature can use it to not check it every time
-	const Bonus *spellcaster = s->getBonus(Selector::type(Bonus::SPELLCASTER)),
-		*randomSpellcaster = s->getBonus(Selector::type(Bonus::RANDOM_SPELLCASTER));
+	const Bonus *spellcaster = s->getBonusLocalFirst(Selector::type(Bonus::SPELLCASTER)),
+		*randomSpellcaster = s->getBonusLocalFirst(Selector::type(Bonus::RANDOM_SPELLCASTER));
 	if (s->casts &&  (spellcaster || randomSpellcaster))
 	{
 		stackCanCastSpell = true;
@@ -3411,11 +3412,10 @@ SDL_Surface * CBattleInterface::imageOfObstacle(const CObstacleInstance &oi) con
 				return vstd::circularAt(smallForceField[forceField.casterSide]->ourImages, frameIndex).bitmap;
 		}
 
-	case CObstacleInstance::MOAT:
-		//moat is blitted by SiegeHelper, this shouldn't be called
-		assert(0);
+	case CObstacleInstance::MOAT://moat is blitted by SiegeHelper, this shouldn't be called
 	default:
 		assert(0);
+		return nullptr;
 	}
 }
 
