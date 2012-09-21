@@ -338,8 +338,7 @@ void CGeneralTextHandler::load()
 
 		//skip header
 		parser.endLine();
-
-		while (parser.endLine());
+		parser.endLine();
 
 		for (int i = 0; i < 6; ++i)
 			seerEmpty.push_back(parser.readString());
@@ -384,9 +383,8 @@ void CGeneralTextHandler::load()
 		do
 		{
 			text = parser.readString();
-			parser.endLine();
 			if (!text.empty())
-				campaignMapNames.push_back(parser.readString());
+				campaignMapNames.push_back(text);
 		}
 		while (parser.endLine() && !text.empty());
 
@@ -402,9 +400,8 @@ void CGeneralTextHandler::load()
 			do
 			{
 				text = parser.readString();
-				parser.endLine();
 				if (!text.empty())
-					campaignRegionNames.back().push_back(parser.readString());
+					campaignRegionNames.back().push_back(text);
 			}
 			while (parser.endLine() && !text.empty());
 		}
