@@ -19,7 +19,7 @@ CStupidAI::~CStupidAI(void)
 	print("destroyed");
 }
 
-void CStupidAI::init( CPlayerBattleCallback * CB )
+void CStupidAI::init( CBattleCallback * CB )
 {
 	print("init called, saving ptr to IBattleCallback");
 	cbc = cb = CB;
@@ -310,13 +310,3 @@ BattleAction CStupidAI::goTowards(const CStack * stack, BattleHex destination)
 	}
 }
 
-
-CBattleGameInterface* GetNewBattleAI()
-{
-	return new CStupidAI();
-}
-
- void ReleaseBattleAI(CBattleGameInterface* i)
-{
-	delete (CStupidAI*)i;
-}
