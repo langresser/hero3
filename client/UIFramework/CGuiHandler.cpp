@@ -122,21 +122,13 @@ void CGuiHandler::updateTime()
 	}
 }
 
+extern void listenForEvents(const SDL_Event& evt);
 void CGuiHandler::handleEvents()
 {
-	while(true)
+	SDL_Event ev;
+	while(SDL_PollEvent(&ev))
 	{
-		SDL_Event ev;
-		boost::unique_lock<boost::mutex> lock(eventsM);
-		if(!events.size())
-		{
-			return;
-		}
-		else
-		{
-			ev = events.front();
-			events.pop();
-		}
+		listenForEvents(ev);
 		handleEvent(&ev);
 	}
 }

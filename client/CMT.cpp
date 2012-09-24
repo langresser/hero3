@@ -324,9 +324,8 @@ int main(int argc, char** argv)
 		si->playerInfos[1].color = 1;
 		startGame(si);
 	}
-	mainGUIThread = new boost::thread(&CGuiHandler::run, boost::ref(GH));
-	listenForEvents();
 
+	GH.run();
 	return 0;
 }
 
@@ -714,19 +713,13 @@ static void fullScreenChanged()
 	GH.totalRedraw();
 }
 
-static void listenForEvents()
+void listenForEvents(const SDL_Event& ev)
 {
 	SettingsListener resChanged = settings.listen["video"]["fullscreen"];
 	resChanged([](const JsonNode &newState){  CGuiHandler::pushSDLEvent(SDL_USEREVENT, FULLSCREEN_TOGGLED); });
 
-	while(1) //main SDL events loop
-	{
-		SDL_Event ev;
-
-		//tlog0 << "Waiting... ";
-		int ret = SDL_WaitEvent(&ev);
 		//tlog0 << "got " << (int)ev.type;
-		if (ret == 0 || (ev.type==SDL_QUIT) ||
+		if ((ev.type==SDL_QUIT) ||
 			(ev.type == SDL_KEYDOWN && ev.key.keysym.sym==SDLK_F4 && (ev.key.keysym.mod & KMOD_ALT)))
 		{
 			if (client)
@@ -743,13 +736,13 @@ static void listenForEvents()
 			SDL_Delay(750);
 			SDL_Quit();
 			tlog0 << "Ending...\n";
-			break;
+			return;
 		}
 		else if(LOCPLINT && ev.type == SDL_KEYDOWN && ev.key.keysym.sym==SDLK_F4)
 		{
 			Settings full = settings.write["video"]["fullscreen"];
 			full->Bool() = !full->Bool();
-			continue;
+			return;
 		}
 		else if(ev.type == SDL_USEREVENT)
 		{
@@ -814,16 +807,8 @@ static void listenForEvents()
 				assert(0);
 			}
 
-			continue;
+			return;
 		} 
-
-		//tlog0 << " pushing ";
-		{
-			boost::unique_lock<boost::mutex> lock(eventsM); 
-			events.push(ev);
-		}
-		//tlog0 << " done\n";
-	}
 }
 
 void startGame(StartInfo * options, CConnection *serv/* = NULL*/)
