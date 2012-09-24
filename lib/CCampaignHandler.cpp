@@ -35,9 +35,9 @@ CCampaignHeader CCampaignHandler::getHeader( const std::string & name)
 	return ret;
 }
 
-CCampaign * CCampaignHandler::getCampaign( const std::string & name)
+unique_ptr<CCampaign> CCampaignHandler::getCampaign( const std::string & name )
 {
-	CCampaign * ret = new CCampaign();
+	auto ret = make_unique<CCampaign>();
 
 	std::vector<std::vector<ui8>> file = getFile(name, false);
 
@@ -52,18 +52,19 @@ CCampaign * CCampaignHandler::getCampaign( const std::string & name)
 		ret->scenarios.push_back(sc);
 	}
 
-
 	int scenarioID = 0;
 
 	//first entry is campaign header. start loop from 1
-	for (int g=1; g<file.size() && g<howManyScenarios; ++g)
+	for (int g=1; g<file.size() && scenarioID<howManyScenarios; ++g)
 	{
 		while(!ret->scenarios[scenarioID].isNotVoid()) //skip void scenarios
 		{
 			scenarioID++;
 		}
-		//set map piece appropriately
-		ret->mapPieces[scenarioID++] = file[g];
+
+		//set map piece appropriately, convert vector to string
+		ret->mapPieces[scenarioID].assign(reinterpret_cast< const char* >(file[g].data()), file[g].size());
+		scenarioID++;
 	}
 
 	return ret;
@@ -173,50 +174,50 @@ CScenarioTravel CCampaignHandler::readScenarioTravelFromMemory( const ui8 * buff
 				//hero: FFFD means 'most powerful' and FFFE means 'generated'
 				switch(bonus.type)
 				{
-				case 0: //spell
+				case CScenarioTravel::STravelBonus::SPELL:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = buffer[outIt++]; //spell ID
 						break;
 					}
-				case 1: //monster
+				case CScenarioTravel::STravelBonus::MONSTER:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = read_le_u16(buffer + outIt); outIt += 2; //monster type
 						bonus.info3 = read_le_u16(buffer + outIt); outIt += 2; //monster count
 						break;
 					}
-				case 2: //building
+				case CScenarioTravel::STravelBonus::BUILDING:
 					{
 						bonus.info1 = buffer[outIt++]; //building ID (0 - town hall, 1 - city hall, 2 - capitol, etc)
 						break;
 					}
-				case 3: //artifact
+				case CScenarioTravel::STravelBonus::ARTIFACT:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = read_le_u16(buffer + outIt); outIt += 2; //artifact ID
 						break;
 					}
-				case 4: //spell scroll
+				case CScenarioTravel::STravelBonus::SPELL_SCROLL:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = buffer[outIt++]; //spell ID
 						break;
 					}
-				case 5: //prim skill
+				case CScenarioTravel::STravelBonus::PRIMARY_SKILL:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = read_le_u32(buffer + outIt); outIt += 4; //bonuses (4 bytes for 4 skills)
 						break;
 					}
-				case 6: //sec skills
+				case CScenarioTravel::STravelBonus::SECONDARY_SKILL:
 					{
 						bonus.info1 = read_le_u16(buffer + outIt); outIt += 2; //hero
 						bonus.info2 = buffer[outIt++]; //skill ID
 						bonus.info3 = buffer[outIt++]; //skill level
 						break;
 					}
-				case 7: //resources
+				case CScenarioTravel::STravelBonus::RESOURCE:
 					{
 						bonus.info1 = buffer[outIt++]; //type
 						//FD - wood+ore
@@ -224,6 +225,9 @@ CScenarioTravel CCampaignHandler::readScenarioTravelFromMemory( const ui8 * buff
 						bonus.info2 = read_le_u32(buffer + outIt); outIt += 4; //count
 						break;
 					}
+				default:
+					tlog1<<"Corrupted h3c file"<<std::endl;
+					break;
 				}
 				ret.bonusesToChoose.push_back(bonus);
 			}
@@ -235,7 +239,7 @@ CScenarioTravel CCampaignHandler::readScenarioTravelFromMemory( const ui8 * buff
 			for (int g=0; g<numOfBonuses; ++g)
 			{
 				CScenarioTravel::STravelBonus bonus;
-				bonus.type = 8;
+				bonus.type = CScenarioTravel::STravelBonus::PLAYER_PREV_SCENARIO;
 				bonus.info1 = buffer[outIt++]; //player color
 				bonus.info2 = buffer[outIt++]; //from what scenario
 
@@ -249,7 +253,7 @@ CScenarioTravel CCampaignHandler::readScenarioTravelFromMemory( const ui8 * buff
 			for (int g=0; g<numOfBonuses; ++g)
 			{
 				CScenarioTravel::STravelBonus bonus;
-				bonus.type = 9;
+				bonus.type = CScenarioTravel::STravelBonus::HERO;
 				bonus.info1 = buffer[outIt++]; //player color
 				bonus.info2 = read_le_u16(buffer + outIt); outIt += 2; //hero, FF FF - random
 
@@ -333,16 +337,12 @@ void CCampaignScenario::prepareCrossoverHeroes( std::vector<CGHeroInstance *> he
 		//trimming prim skills
 		BOOST_FOREACH(CGHeroInstance * cgh, crossoverHeroes)
 		{
-#define RESET_PRIM_SKILL(NAME, VALNAME) \
-			cgh->getBonusLocalFirst(Selector::type(Bonus::PRIMARY_SKILL) && \
-				Selector::subtype(PrimarySkill::NAME) && \
-				Selector::sourceType(Bonus::HERO_BASE_SKILL) )->val = cgh->type->heroClass->VALNAME;
-
-			RESET_PRIM_SKILL(ATTACK, initialAttack);
-			RESET_PRIM_SKILL(DEFENSE, initialDefence);
-			RESET_PRIM_SKILL(SPELL_POWER, initialPower);
-			RESET_PRIM_SKILL(KNOWLEDGE, initialKnowledge);
-#undef RESET_PRIM_SKILL
+			for(int g=0; g<GameConstants::PRIMARY_SKILLS; ++g)
+			{
+				cgh->getBonusLocalFirst(Selector::type(Bonus::PRIMARY_SKILL) &&
+					Selector::subtype(g) && Selector::sourceType(Bonus::HERO_BASE_SKILL) )->val
+						= cgh->type->heroClass->initialPrimSkills[g];
+			}
 		}
 	}
 	if (!(travelOptions.whatHeroKeeps & 4))
@@ -403,19 +403,20 @@ void CCampaignScenario::prepareCrossoverHeroes( std::vector<CGHeroInstance *> he
 
 bool CScenarioTravel::STravelBonus::isBonusForHero() const
 {
-	return type == 0 || type == 1 || type == 3 || type == 4 || type == 5 || type == 6;
+	return type == SPELL || type == MONSTER || type == ARTIFACT || type == SPELL_SCROLL || type == PRIMARY_SKILL
+		|| type == SECONDARY_SKILL;
 }
 
-void CCampaignState::initNewCampaign( const StartInfo &si )
-{
-	assert(si.mode == StartInfo::CAMPAIGN);
-	campaignName = si.mapname;
-	currentMap = si.campSt->currentMap;
-
-	camp = CCampaignHandler::getCampaign(campaignName);
-	for (ui8 i = 0; i < camp->mapPieces.size(); i++)
-		mapsRemaining.push_back(i);
-}
+// void CCampaignState::initNewCampaign( const StartInfo &si )
+// {
+// 	assert(si.mode == StartInfo::CAMPAIGN);
+// 	campaignName = si.mapname;
+// 	currentMap = si.campState->currentMap;
+// 
+// 	camp = CCampaignHandler::getCampaign(campaignName);
+// 	for (ui8 i = 0; i < camp->mapPieces.size(); i++)
+// 		mapsRemaining.push_back(i);
+// }
 
 void CCampaignState::mapConquered( const std::vector<CGHeroInstance*> & heroes )
 {
@@ -423,4 +424,31 @@ void CCampaignState::mapConquered( const std::vector<CGHeroInstance*> & heroes )
 	mapsConquered.push_back(currentMap);
 	mapsRemaining -= currentMap;
 	camp->scenarios[currentMap].conquered = true;
+}
+
+CScenarioTravel::STravelBonus CCampaignState::getBonusForCurrentMap() const
+{
+	assert(chosenCampaignBonuses.count(currentMap));
+	return getCurrentScenario().travelOptions.bonusesToChoose[currentBonusID()];
+}
+
+const CCampaignScenario & CCampaignState::getCurrentScenario() const
+{
+	return camp->scenarios[currentMap];
+}
+
+ui8 CCampaignState::currentBonusID() const
+{
+	return chosenCampaignBonuses[currentMap];
+}
+
+CCampaignState::CCampaignState()
+{}
+
+CCampaignState::CCampaignState( unique_ptr<CCampaign> _camp ) : camp(std::move(_camp))
+{
+	for(int i = 0; i < camp->scenarios.size(); i++)
+	{
+		mapsRemaining.push_back(i);
+	}
 }

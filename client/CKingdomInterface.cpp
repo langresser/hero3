@@ -7,6 +7,7 @@
 #include "../lib/CModHandler.h" //for buildings per turn
 #include "../lib/CObjectHandler.h" //Hero/Town objects
 #include "../lib/CHeroHandler.h" // only for calculating required xp? worth it?
+#include "../lib/CTownHandler.h"
 #include "CAnimation.h" //CAnimImage
 #include "CAdvmapInterface.h" //CResDataBar
 #include "CCastleInterface.h" //various town-specific classes
@@ -501,7 +502,7 @@ void CKingdomInterface::generateObjectsList(const std::vector<const CGObjectInst
 	BOOST_FOREACH(const CGObjectInstance * object, ownedObjects)
 	{
 		//Dwellings
-		if ( object->ID == 17 )
+		if ( object->ID == Obj::CREATURE_GENERATOR1 )
 		{
 			OwnedObjectInfo &info = visibleObjects[object->subID];
 			if (info.count++ == 0)
@@ -565,7 +566,7 @@ void CKingdomInterface::generateMinesList(const std::vector<const CGObjectInstan
 	BOOST_FOREACH(const CGObjectInstance * object, ownedObjects)
 	{
 		//Mines
-		if ( object->ID == 53 )
+		if ( object->ID == Obj::MINE )
 		{
 			const CGMine *mine = dynamic_cast<const CGMine*>(object);
 			assert(mine);
@@ -794,12 +795,7 @@ CTownItem::CTownItem(const CGTownInstance* Town):
 	garr = new CGarrisonInt(313, 3, 4, Point(232,0),  NULL, Point(313,2), town->getUpperArmy(), town->visitingHero, true, true, true);
 	heroes = new HeroSlots(town, Point(244,6), Point(475,6), garr, false);
 
-	size_t iconIndex = town->subID*2;
-	if (!town->hasFort())
-		iconIndex += GameConstants::F_NUMBER*2;
-
-	if(town->builded >= CGI->modh->settings.MAX_BUILDING_PER_TURN)
-		iconIndex++;
+	size_t iconIndex = town->town->clientInfo.icons[town->hasFort()][town->builded >= CGI->modh->settings.MAX_BUILDING_PER_TURN];
 
 	picture = new CAnimImage("ITPT", iconIndex, 0, 5, 6);
 	townArea = new LRClickableAreaOpenTown;

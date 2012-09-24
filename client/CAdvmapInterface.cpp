@@ -991,7 +991,7 @@ void CAdvMapInt::select(const CArmedInstance *sel, bool centerView /*= true*/)
 		centerOn(sel);
 
 	terrain.currentPath = NULL;
-	if(sel->ID==GameConstants::TOWNI_TYPE)
+	if(sel->ID==Obj::TOWN)
 	{
 		auto town = dynamic_cast<const CGTownInstance*>(sel);
 
@@ -1115,7 +1115,7 @@ const CGObjectInstance* CAdvMapInt::getBlockingObject(const int3 &mapPos)
 	if (bobjs.empty())
 		return nullptr;
 
-	if (bobjs.back()->ID == GameConstants::HEROI_TYPE)
+	if (bobjs.back()->ID == Obj::HERO)
 		return bobjs.back();
 	else
 		return bobjs.front();
@@ -1150,10 +1150,10 @@ void CAdvMapInt::tileLClicked(const int3 &mapPos)
 		return;
 	}
 	//check if we can select this object
-	bool canSelect = topBlocking && topBlocking->ID == GameConstants::HEROI_TYPE && topBlocking->tempOwner == LOCPLINT->playerID;
-	canSelect |= topBlocking && topBlocking->ID == GameConstants::TOWNI_TYPE && LOCPLINT->cb->getPlayerRelations(LOCPLINT->playerID, topBlocking->tempOwner);
+	bool canSelect = topBlocking && topBlocking->ID == Obj::HERO && topBlocking->tempOwner == LOCPLINT->playerID;
+	canSelect |= topBlocking && topBlocking->ID == Obj::TOWN && LOCPLINT->cb->getPlayerRelations(LOCPLINT->playerID, topBlocking->tempOwner);
 
-	if (selection->ID != GameConstants::HEROI_TYPE) //hero is not selected (presumably town)
+	if (selection->ID != Obj::HERO) //hero is not selected (presumably town)
 	{
 		assert(!terrain.currentPath); //path can be active only when hero is selected
 		if(selection == topBlocking) //selected town clicked
@@ -1243,7 +1243,7 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 		switch(spellBeingCasted->id)
 		{
 		case Spells::SCUTTLE_BOAT:
-			if(objAtTile && objAtTile->ID == 8)
+			if(objAtTile && objAtTile->ID == Obj::BOAT)
 				CCS->curh->changeGraphic(0, 42);
 			else
 				CCS->curh->changeGraphic(0, 0);
@@ -1263,13 +1263,13 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 
 	const bool guardingCreature = CGI->mh->map->isInTheMap(LOCPLINT->cb->guardingCreaturePosition(mapPos));
 
-	if(selection->ID == GameConstants::TOWNI_TYPE)
+	if(selection->ID == Obj::TOWN)
 	{
 		if(objAtTile)
 		{
-			if(objAtTile->ID == GameConstants::TOWNI_TYPE && LOCPLINT->cb->getPlayerRelations(LOCPLINT->playerID, objAtTile->tempOwner))
+			if(objAtTile->ID == Obj::TOWN && LOCPLINT->cb->getPlayerRelations(LOCPLINT->playerID, objAtTile->tempOwner))
 				CCS->curh->changeGraphic(0, 3);
-			else if(objAtTile->ID == GameConstants::HEROI_TYPE && objAtTile->tempOwner == LOCPLINT->playerID)
+			else if(objAtTile->ID == Obj::HERO && objAtTile->tempOwner == LOCPLINT->playerID)
 				CCS->curh->changeGraphic(0, 2);
 			else
 				CCS->curh->changeGraphic(0, 0);
@@ -1283,7 +1283,7 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 
 		if(objAtTile)
 		{
-			if(objAtTile->ID == GameConstants::HEROI_TYPE)
+			if(objAtTile->ID == Obj::HERO)
 			{
 				if(!LOCPLINT->cb->getPlayerRelations( LOCPLINT->playerID, objAtTile->tempOwner)) //enemy hero
 				{
@@ -1302,7 +1302,7 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 						CCS->curh->changeGraphic(0, 2);
 				}
 			}
-			else if(objAtTile->ID == GameConstants::TOWNI_TYPE)
+			else if(objAtTile->ID == Obj::TOWN)
 			{
 				if(!LOCPLINT->cb->getPlayerRelations( LOCPLINT->playerID, objAtTile->tempOwner)) //enemy town
 				{
@@ -1330,14 +1330,14 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 						CCS->curh->changeGraphic(0, 3);
 				}
 			}
-			else if(objAtTile->ID == 8) //boat
+			else if(objAtTile->ID == Obj::BOAT)
 			{
 				if(accessible)
 					CCS->curh->changeGraphic(0, 6 + turns*6);
 				else
 					CCS->curh->changeGraphic(0, 0);
 			}
-			else if (objAtTile->ID == 33 || objAtTile->ID == 219) // Garrison
+			else if (objAtTile->ID == Obj::GARRISON || objAtTile->ID == Obj::GARRISON2)
 			{
 				if (accessible)
 				{
@@ -1458,7 +1458,7 @@ void CAdvMapInt::leaveCastingMode(bool cast /*= false*/, int3 dest /*= int3(-1, 
 
 const CGHeroInstance * CAdvMapInt::curHero() const
 {
-	if(selection && selection->ID == GameConstants::HEROI_TYPE)
+	if(selection && selection->ID == Obj::HERO)
 		return static_cast<const CGHeroInstance *>(selection);
 	else
 		return NULL;
@@ -1466,7 +1466,7 @@ const CGHeroInstance * CAdvMapInt::curHero() const
 
 const CGTownInstance * CAdvMapInt::curTown() const
 {
-	if(selection && selection->ID == GameConstants::TOWNI_TYPE)
+	if(selection && selection->ID == Obj::TOWN)
 		return static_cast<const CGTownInstance *>(selection);
 	else
 		return NULL;

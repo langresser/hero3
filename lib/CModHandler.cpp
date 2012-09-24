@@ -81,10 +81,12 @@ void CModHandler::loadConfigFromFile (std::string name)
 		tlog3 << "\t\tFound mod file: " << entry.getResourceName() << "\n";
 		const JsonNode config ((char*)textData.get(), stream->getSize());
 
+		VLC->townh->loadFactions(config["factions"]);
+
 		const JsonNode *value = &config["creatures"];
 		BOOST_FOREACH (auto creature, value->Vector())
 		{
-			auto cre = loadCreature (creature); //create and push back creature
+			auto cre = loadCreature (creature); //FIXME: unused variable 'cre' //create and push back creature
 		}
 	}
 }
@@ -114,51 +116,11 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	cre->namePl = name["plural"].String();
 	cre->nameRef = cre->nameSing;
 
-	//TODO: export resource set to separate function?
-	const JsonNode &  cost = node["cost"];
-	if (cost.getType() == JsonNode::DATA_FLOAT) //gold
-	{
-		cre->cost[Res::GOLD] = cost.Float();
-	}
-	else if (cost.getType() == JsonNode::DATA_VECTOR)
-	{
-		int i = 0;
-		BOOST_FOREACH (auto & val, cost.Vector())
-		{
-			cre->cost[i++] = val.Float();
-		}
-	}
-	else //damn you...
-	{
-		value = &cost["gold"];
-		if (!value->isNull())
-			cre->cost[Res::GOLD] = value->Float();
-		value = &cost["gems"];
-		if (!value->isNull())
-			cre->cost[Res::GEMS] = value->Float();
-		value = &cost["crystal"];
-		if (!value->isNull())
-			cre->cost[Res::CRYSTAL] = value->Float();
-		value = &cost["mercury"];
-		if (!value->isNull())
-			cre->cost[Res::MERCURY] = value->Float();
-		value = &cost["sulfur"];
-		if (!value->isNull())
-			cre->cost[Res::SULFUR] = value->Float();
-		value = &cost["ore"];
-		if (!value->isNull())
-			cre->cost[Res::ORE] = value->Float();
-		value = &cost["wood"];
-		if (!value->isNull())
-			cre->cost[Res::WOOD] = value->Float();
-		value = &cost["mithril"];
-		if (!value->isNull())
-			cre->cost[Res::MITHRIL] = value->Float();
-	}
+	cre->cost = Res::ResourceSet(node["cost"]);
 
 	cre->level = node["level"].Float();
-	cre->faction = -1; //neutral
-	//TODO: node["faction"].String() to id or just node["faction"].Float();
+	cre->faction = 9; //neutral faction is 9 for now. Will be replaced by string -> id conversion
+	//TODO: node["faction"].String() to id
 	cre->fightValue = node["fightValue"].Float();
 	cre->AIValue = node["aiValue"].Float();
 	cre->growth = node["growth"].Float();
@@ -176,13 +138,9 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	cre->ammMax = amounts["max"].Float();
 
 	//optional
-	value = &node["upgrades"];
-	if (!value->isNull())
+	BOOST_FOREACH (auto & str, node["upgrades"].Vector())
 	{
-		BOOST_FOREACH (auto & str, value->Vector())
-		{
-			cre->upgradeNames.insert (str.String());
-		}
+		cre->upgradeNames.insert (str.String());
 	}
 
 	value = &node["shots"];
@@ -193,19 +151,11 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	if (!value->isNull())
 		cre->addBonus(value->Float(), Bonus::CASTS);
 
-	value = &node["doubleWide"];
-	if (!value->isNull())
-		cre->doubleWide = value->Bool();
-	else
-		cre->doubleWide = false;
+	cre->doubleWide = node["doubleWide"].Bool();
 
-	value = &node["abilities"];
-	if (!value->isNull())
+	BOOST_FOREACH (const JsonNode &bonus, node["abilities"].Vector())
 	{
-		BOOST_FOREACH (const JsonNode &bonus, value->Vector())
-		{
-			cre->addNewBonus(ParseBonus(bonus));
-		}
+		cre->addNewBonus(ParseBonus(bonus));
 	}
 	//graphics
 
@@ -234,14 +184,15 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 		cre->missleFrameAngles[i++] = angle.Float();
 	}
 	cre->advMapDef = graphics["map"].String();
-	//TODO: we need to know creature id to add it
-	//FIXME: creature handler is not yet initialized
-	//VLC->creh->idToProjectile[cre->idNumber] = "PLCBOWX.DEF";
+	cre->iconIndex = graphics["iconIndex"].Float();
+	
+	//TODO: parse
 	cre->projectile = "PLCBOWX.DEF";
+	cre->projectileSpin = false;
 
 	const JsonNode & sounds = node["sound"];
 
-#define GET_SOUND_VALUE(value_name) do { value = &sounds[#value_name]; if (!value->isNull()) cre->sounds.value_name = value->String(); } while(0)
+#define GET_SOUND_VALUE(value_name) do { cre->sounds.value_name = sounds[#value_name].String(); } while(0)
 	GET_SOUND_VALUE(attack);
 	GET_SOUND_VALUE(defend);
 	GET_SOUND_VALUE(killed);
@@ -256,6 +207,16 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 
 	creatures.push_back(cre);
 	return cre;
+}
+void CModHandler::recreateAdvMapDefs()
+{
+	BOOST_FOREACH (auto creature, creatures)
+	{
+		//generate adventure map object info & graphics
+		CGDefInfo* nobj = new CGDefInfo (*VLC->dobjinfo->gobjs[Obj::MONSTER][0]);//copy all typical properties
+		nobj->name = creature->advMapDef; //change only def name (?)
+		VLC->dobjinfo->gobjs[Obj::MONSTER][creature->idNumber] = nobj;
+	}
 }
 void CModHandler::recreateHandlers()
 {
@@ -273,11 +234,8 @@ void CModHandler::recreateHandlers()
 		//	VLC->creh->nameToID[creature->nameRef] = creature->idNumber;
 		VLC->creh->nameToID[creature->nameSing] = creature->idNumber;
 
-		//generate adventure map object info & graphics
-		CGDefInfo* nobj = new CGDefInfo (*VLC->dobjinfo->gobjs[GameConstants::CREI_TYPE][0]);//copy all typical properties
-		nobj->name = creature->advMapDef; //change only def name (?)
-		VLC->dobjinfo->gobjs[GameConstants::CREI_TYPE][creature->idNumber] = nobj;
 	}
+	recreateAdvMapDefs();
 	BOOST_FOREACH (auto creature, VLC->creh->creatures) //populate upgrades described with string
 	{
 		BOOST_FOREACH (auto upgradeName, creature->upgradeNames)

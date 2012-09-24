@@ -793,11 +793,7 @@ void CSelectionScreen::startCampaign()
 {
 	if (SEL->current)
 	{
-		CCampaign * ourCampaign = CCampaignHandler::getCampaign(SEL->current->fileURI);
-		CCampaignState * campState = new CCampaignState();
-		campState->camp = ourCampaign;
-		sInfo.campSt = campState;
-		GH.pushInt( new CBonusSelection(campState) );
+		GH.pushInt(new CBonusSelection(SEL->current->fileURI));
 	}
 }
 
@@ -1918,41 +1914,30 @@ void OptionsTab::nextCastle( int player, int dir )
 
 	PlayerSettings &s = SEL->sInfo.playerInfos[player];
 	si32 &cur = s.castle;
-	ui32 allowed = SEL->current->mapHeader->players[s.color].allowedFactions;
+	auto & allowed = SEL->current->mapHeader->players[s.color].allowedFactions;
 
 	if (cur == -2) //no castle - no change
 		return;
 
 	if (cur == -1) //random => first/last available
 	{
-		int pom = (dir>0) ? (0) : (GameConstants::F_NUMBER-1); // last or first
-		for (;pom >= 0  &&  pom < GameConstants::F_NUMBER;  pom+=dir)
-		{
-			if((1 << pom) & allowed)
-			{
-				cur=pom;
-				break;
-			}
-		}
+		if (dir > 0)
+			cur = *allowed.begin(); //id of first town
+		else
+			cur = *allowed.rbegin(); //id of last town
+
 	}
 	else // next/previous available
 	{
-		for (;;)
+		if ( (cur == *allowed.begin() && dir < 0 )
+		  || (cur == *allowed.rbegin() && dir > 0) )
+			cur = -1;
+		else
 		{
-			cur+=dir;
-			if ((1 << cur) & allowed)
-				break;
-
-			if (cur >= GameConstants::F_NUMBER  ||  cur<0)
-			{
-				double p1 = log((double)allowed) / log(2.0)+0.000001;
-				double check = p1 - ((int)p1);
-				if (check < 0.001)
-					cur = (int)p1;
-				else
-					cur = -1;
-				break;
-			}
+			assert(dir >= -1 && dir <= 1); //othervice std::advance may go out of range
+			auto iter = allowed.find(cur);
+			std::advance(iter, dir);
+			cur = *iter;
 		}
 	}
 
@@ -2756,10 +2741,14 @@ void CHotSeatPlayers::enterSelectionScreen()
 	GH.pushInt(new CSelectionScreen(CMenuScreen::newGame, CMenuScreen::MULTI_HOT_SEAT, &names));
 }
 
-CBonusSelection::CBonusSelection( CCampaignState * _ourCampaign )
-: highlightedRegion(NULL), ourCampaign(_ourCampaign), ourHeader(NULL),
-	 diffLb(NULL), diffRb(NULL), bonuses(NULL)
+void CBonusSelection::init()
 {
+	highlightedRegion = nullptr;
+	ourHeader = nullptr;
+	diffLb = nullptr;
+	diffRb = nullptr;
+	bonuses = nullptr;
+
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
 	static const std::string bgNames [] = {"E1_BG.BMP", "G2_BG.BMP", "E2_BG.BMP", "G1_BG.BMP", "G3_BG.BMP", "N1_BG.BMP",
 		"S1_BG.BMP", "BR_BG.BMP", "IS_BG.BMP", "KR_BG.BMP", "NI_BG.BMP", "TA_BG.BMP", "AR_BG.BMP", "HS_BG.BMP",
@@ -2823,11 +2812,11 @@ CBonusSelection::CBonusSelection( CCampaignState * _ourCampaign )
 		}
 	}
 
-	//init campaign state if necessary
-	if (ourCampaign->campaignName.size() == 0)
-	{
-		ourCampaign->initNewCampaign(sInfo);
-	}
+// 	//init campaign state if necessary
+// 	if (ourCampaign->campaignName.size() == 0)
+// 	{
+// 		ourCampaign->initNewCampaign(sInfo);
+// 	}
 
 	//allies / enemies
 	CSDL_Ext::printAt(CGI->generaltexth->allTexts[390] + ":", 486, 407, FONT_SMALL, Colors::Cornsilk, background); //Allies
@@ -2860,7 +2849,21 @@ CBonusSelection::CBonusSelection( CCampaignState * _ourCampaign )
 
 	//load miniflags
 	sFlags = CDefHandler::giveDef("ITGFLAGS.DEF");
+}
 
+
+CBonusSelection::CBonusSelection(shared_ptr<CCampaignState> _ourCampaign)
+	: ourCampaign(std::move(_ourCampaign))
+{
+	init();
+}
+
+CBonusSelection::CBonusSelection( std::string campaignFName )
+{
+	ourCampaign = make_shared<CCampaignState>(CCampaignHandler::getCampaign(campaignFName));
+
+	sInfo.campState = ourCampaign;
+	init();
 }
 
 CBonusSelection::~CBonusSelection()
@@ -2925,7 +2928,7 @@ void CBonusSelection::selectMap( int whichOne )
 	sInfo.difficulty = ourCampaign->camp->scenarios[whichOne].difficulty;
 	sInfo.mapname = ourCampaign->camp->header.filename;
 	sInfo.mode = StartInfo::CAMPAIGN;
-	sInfo.campSt = ourCampaign;
+	sInfo.campState = ourCampaign;
 	ourCampaign->currentMap = whichOne;
 
 	//get header
@@ -3016,7 +3019,7 @@ void CBonusSelection::updateBonusSelection()
 	//resource - BORES.DEF
 	//player - CREST58.DEF
 	//hero - PORTRAITSLARGE (HPL###.BMPs)
-	const CCampaignScenario &scenario = ourCampaign->camp->scenarios[sInfo.campSt->currentMap];
+	const CCampaignScenario &scenario = ourCampaign->camp->scenarios[sInfo.campState->currentMap];
 	const std::vector<CScenarioTravel::STravelBonus> & bonDescs = scenario.travelOptions.bonusesToChoose;
 
 	for (size_t i=0; i<bonuses->buttons.size(); i++)
@@ -3038,17 +3041,17 @@ void CBonusSelection::updateBonusSelection()
 			std::string desc;
 			switch(bonDescs[i].type)
 			{
-			case 0: //spell
+			case CScenarioTravel::STravelBonus::SPELL:
 				desc = CGI->generaltexth->allTexts[715];
 				boost::algorithm::replace_first(desc, "%s", CGI->spellh->spells[bonDescs[i].info2]->name);
 				break;
-			case 1: //monster
+			case CScenarioTravel::STravelBonus::MONSTER:
 				picNumber = bonDescs[i].info2 + 2;
 				desc = CGI->generaltexth->allTexts[717];
 				boost::algorithm::replace_first(desc, "%d", boost::lexical_cast<std::string>(bonDescs[i].info3));
 				boost::algorithm::replace_first(desc, "%s", CGI->creh->creatures[bonDescs[i].info2]->namePl);
 				break;
-			case 2: //building
+			case CScenarioTravel::STravelBonus::BUILDING:
 				{
 					int faction = -1;
 					for(std::map<int, PlayerSettings>::iterator it = sInfo.playerInfos.begin();
@@ -3071,15 +3074,15 @@ void CBonusSelection::updateBonusSelection()
 						desc = CGI->townh->towns[faction].buildings.find(buildID)->second->Description();
 				}
 				break;
-			case 3: //artifact
+			case CScenarioTravel::STravelBonus::ARTIFACT:
 				desc = CGI->generaltexth->allTexts[715];
 				boost::algorithm::replace_first(desc, "%s", CGI->arth->artifacts[bonDescs[i].info2]->Name());
 				break;
-			case 4: //spell scroll
+			case CScenarioTravel::STravelBonus::SPELL_SCROLL:
 				desc = CGI->generaltexth->allTexts[716];
 				boost::algorithm::replace_first(desc, "%s", CGI->spellh->spells[bonDescs[i].info2]->name);
 				break;
-			case 5: //primary skill
+			case CScenarioTravel::STravelBonus::PRIMARY_SKILL:
 				{
 					int leadingSkill = -1;
 					std::vector<std::pair<int, int> > toPrint; //primary skills to be listed <num, val>
@@ -3112,14 +3115,14 @@ void CBonusSelection::updateBonusSelection()
 					boost::algorithm::replace_first(desc, "%s", substitute);
 					break;
 				}
-			case 6: //secondary skill
+			case CScenarioTravel::STravelBonus::SECONDARY_SKILL:
 				desc = CGI->generaltexth->allTexts[718];
 
 				boost::algorithm::replace_first(desc, "%s", CGI->generaltexth->levels[bonDescs[i].info3]); //skill level
 				boost::algorithm::replace_first(desc, "%s", CGI->generaltexth->skillName[bonDescs[i].info2]); //skill name
 
 				break;
-			case 7: //resource
+			case CScenarioTravel::STravelBonus::RESOURCE:
 				{
 					int serialResID = 0;
 					switch(bonDescs[i].info1)
@@ -3150,7 +3153,7 @@ void CBonusSelection::updateBonusSelection()
 					boost::algorithm::replace_first(desc, "%s", replacement);
 				}
 				break;
-			case 8: //player aka hero crossover
+			case CScenarioTravel::STravelBonus::PLAYER_PREV_SCENARIO:
 				picNumber = bonDescs[i].info1;
 				desc = CGI->generaltexth->allTexts[718];
 
@@ -3158,15 +3161,16 @@ void CBonusSelection::updateBonusSelection()
 				boost::algorithm::replace_first(desc, "%s", ourCampaign->camp->scenarios[bonDescs[i].info2].mapName); //scenario
 
 				break;
-			case 9: //hero
-
+			case CScenarioTravel::STravelBonus::HERO:
+				
 				desc = CGI->generaltexth->allTexts[718];
 				boost::algorithm::replace_first(desc, "%s", CGI->generaltexth->capColors[bonDescs[i].info1]); //hero's color
 
 				if (bonDescs[i].info2 == 0xFFFF)
 				{
-					boost::algorithm::replace_first(desc, "%s", CGI->heroh->heroes[0]->name); //hero's name
-					picNumber = 0;
+					boost::algorithm::replace_first(desc, "%s", CGI->generaltexth->allTexts[101]); //hero's name
+					picNumber = -1;
+					picName = "CBONN1A3.BMP";
 				}
 				else
 				{
@@ -3191,6 +3195,7 @@ void CBonusSelection::updateBonusSelection()
 void CBonusSelection::startMap()
 {
 	StartInfo *si = new StartInfo(sInfo);
+	
 	if (ourCampaign->mapsConquered.size())
 	{
 		GH.popInts(1);
@@ -3206,9 +3211,9 @@ void CBonusSelection::selectBonus( int id )
 {
 	// Total redraw is needed because the border around the bonus images
 	// have to be undrawn/drawn.
-	if (id != sInfo.choosenCampaignBonus)
+	if (id != sInfo.campState->currentBonusID())
 	{
-		sInfo.choosenCampaignBonus = id;
+		sInfo.campState->chosenCampaignBonuses[sInfo.campState->currentMap] = id;
 		GH.totalRedraw();
 
 		if (startB->getState() == CButtonBase::BLOCKED)
@@ -3216,11 +3221,19 @@ void CBonusSelection::selectBonus( int id )
 	}
 
 
-	const CCampaignScenario &scenario = ourCampaign->camp->scenarios[sInfo.campSt->currentMap];
+	const CCampaignScenario &scenario = ourCampaign->camp->scenarios[sInfo.campState->currentMap];
 	const std::vector<CScenarioTravel::STravelBonus> & bonDescs = scenario.travelOptions.bonusesToChoose;
-	if (bonDescs[id].type == 8) //hero crossover
+	if (bonDescs[id].type == CScenarioTravel::STravelBonus::HERO)
 	{
-		SEL->setPlayer(sInfo.playerInfos[0], bonDescs[id].info1); //TODO: substitute with appropriate color
+		std::map<ui32, std::string> names;
+		names[1] = settings["general"]["playerName"].String();
+		for(auto it = sInfo.playerInfos.begin(); it != sInfo.playerInfos.end(); ++it)
+		{
+			if(it->first == bonDescs[id].info1)
+				::setPlayer(it->second, 1, names);
+			else
+				::setPlayer(it->second, 0, names);
+		}
 	}
 }
 
@@ -3566,11 +3579,7 @@ void CCampaignScreen::CCampaignButton::clickLeft(tribool down, bool previousStat
 	{
 		// Close running video and open the selected campaign
 		CCS->videoh->close();
-
-		CCampaign * ourCampaign = CCampaignHandler::getCampaign(campFile);
-		CCampaignState * campState = new CCampaignState();
-		campState->camp = ourCampaign;
-		GH.pushInt( new CBonusSelection(campState) );
+		GH.pushInt( new CBonusSelection(campFile) );
 	}
 }
 

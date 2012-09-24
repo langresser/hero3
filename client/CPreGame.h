@@ -415,7 +415,7 @@ class CBonusSelection : public CIntObject
 	CRegion * highlightedRegion;
 
 	void loadPositionsOfGraphics();
-	CCampaignState * ourCampaign;
+	shared_ptr<CCampaignState> ourCampaign;
 	CMapHeader *ourHeader;
 	CDefHandler *sizes; //icons of map sizes
 	SDL_Surface* diffPics[5]; //pictures of difficulties, user-selectable (or not if campaign locks this)
@@ -427,15 +427,15 @@ class CBonusSelection : public CIntObject
 	CHighlightableButtonsGroup * bonuses;
 
 public:
-	void bonusSelectionChanges(int choosenBonus);
-
 	StartInfo sInfo;
 	CDefHandler *sFlags;
 
 	void selectMap(int whichOne);
 	void selectBonus(int id);
+	void init();
 
-	CBonusSelection(CCampaignState * _ourCampaign);
+	CBonusSelection(std::string campaignFName);
+	CBonusSelection(shared_ptr<CCampaignState> _ourCampaign);
 	~CBonusSelection();
 
 	void showAll(SDL_Surface * to);

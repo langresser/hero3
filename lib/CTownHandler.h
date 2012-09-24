@@ -105,6 +105,9 @@ public:
 	// Client-only data. Should be moved away from lib
 	struct ClientInfo
 	{
+		//icons [fort is present?][build limit reached?] -> index of icon in def files
+		int icons[2][2];
+
 		std::string musicTheme;
 		std::string townBackground;
 		std::string guildWindow;
@@ -119,7 +122,7 @@ public:
 
 		template <typename Handler> void serialize(Handler &h, const int version)
 		{
-			h & musicTheme & townBackground & guildWindow & buildingsIcons & hallBackground & hallSlots & structures;
+			h & icons & musicTheme & townBackground & guildWindow & buildingsIcons & hallBackground & hallSlots & structures;
 		}
 	} clientInfo;
 
@@ -186,10 +189,6 @@ class DLL_LINKAGE CTownHandler
 
 	void loadPuzzle(CFaction & faction, const JsonNode & source);
 
-	/// main loading function, accepts merged JSON source and add all entries from it into game
-	/// all entries in JSON should be checked for validness before using this function
-	void loadFactions(const JsonNode & source);
-
 	/// load all available data from h3 txt(s) into json structure using format similar to vcmi configs
 	/// returns 2d array [townID] [buildID] of buildings
 	void loadLegacyData(JsonNode & dest);
@@ -200,7 +199,11 @@ public:
 
 	CTownHandler(); //c-tor, set pointer in VLC to this
 
-	/// "entry point" for towns loading.
+	/// main loading function for mods, accepts merged JSON source and add all entries from it into game
+	/// all entries in JSON should be checked for validness before using this function
+	void loadFactions(const JsonNode & source);
+
+	/// "entry point" for loading of OH3 town.
 	/// reads legacy txt's from H3 + vcmi json, merges them
 	/// and loads resulting structure to game using loadTowns method
 	/// in future may require loaded Creature Handler

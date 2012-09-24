@@ -160,13 +160,9 @@ void CTownTooltip::init(const InfoAboutTown &town)
 
 	assert(town.tType);
 
-	size_t imageIndex = town.tType->typeID * 2;
-	if (town.fortLevel == 0)
-		imageIndex += GameConstants::F_NUMBER * 2;
-	if (town.built >= CGI->modh->settings.MAX_BUILDING_PER_TURN)
-		imageIndex++;
+	size_t iconIndex = town.tType->clientInfo.icons[town.fortLevel > 0][town.built >= CGI->modh->settings.MAX_BUILDING_PER_TURN];
 
-	new CAnimImage("itpt", imageIndex, 0, 3, 2);
+	new CAnimImage("itpt", iconIndex, 0, 3, 2);
 
 	if(town.details)
 	{
@@ -244,7 +240,7 @@ void CGarrisonSlot::hover (bool on)
 				{
 					temp = CGI->generaltexth->tcommands[32]; //Select %s (visiting)
 				}
-				else if(owner->armedObjs[0] && owner->armedObjs[0]->ID == GameConstants::TOWNI_TYPE)
+				else if(owner->armedObjs[0] && owner->armedObjs[0]->ID == Obj::TOWN)
 				{
 					temp = CGI->generaltexth->tcommands[12]; //Select %s (in garrison)
 				}
@@ -452,7 +448,7 @@ CGarrisonSlot::CGarrisonSlot(CGarrisonInt *Owner, int x, int y, int IID, int Upg
 	if (creature)
 	{
 		std::string imgName = owner->smallIcons ? "cprsmall" : "TWCRPORT";
-		creatureImage = new CAnimImage(imgName, creature->idNumber + 2);
+		creatureImage = new CAnimImage(imgName, creature->iconIndex);
 	}
 	else
 		creatureImage = nullptr;
@@ -877,7 +873,7 @@ size_t CComponent::getIndex()
 	case primskill:  return subtype;
 	case secskill:   return subtype*3 + 3 + val - 1;
 	case resource:   return subtype;
-	case creature:   return subtype+2;
+	case creature:   return CGI->creh->creatures[subtype]->iconIndex;
 	case artifact:   return subtype;
 	case experience: return 4;
 	case spell:      return subtype;
@@ -900,7 +896,7 @@ std::string CComponent::getDescription()
 	case secskill:   return CGI->generaltexth->skillInfoTexts[subtype][val-1];
 	case resource:   return CGI->generaltexth->allTexts[242];
 	case creature:   return "";
-	case artifact:   return  CGI->arth->artifacts[subtype]->Description();
+	case artifact:   return CGI->arth->artifacts[subtype]->Description();
 	case experience: return CGI->generaltexth->allTexts[241];
 	case spell:      return CGI->spellh->spells[subtype]->descriptions[val];
 	case morale:     return CGI->generaltexth->heroscrn[ 4 - (val>0) + (val<0)];
@@ -1409,7 +1405,7 @@ void CRecruitmentWindow::buy()
 	if(dstslot < 0 && !vstd::contains(CGI->arth->bigArtifacts,CGI->arth->convertMachineID(crid, true))) //no available slot
 	{
 		std::string txt;
-		if(dst->ID == GameConstants::HEROI_TYPE)
+		if(dst->ID == Obj::HERO)
 		{
 			txt = CGI->generaltexth->allTexts[425]; //The %s would join your hero, but there aren't enough provisions to support them.
 			boost::algorithm::replace_first(txt, "%s", slider->value > 1 ? CGI->creh->creatures[crid]->namePl : CGI->creh->creatures[crid]->nameSing);
@@ -2437,7 +2433,7 @@ CMarketplaceWindow::CMarketplaceWindow(const IMarket *Market, const CGHeroInstan
 
 	std::string title;
 
-	if (market->o->ID == GameConstants::TOWNI_TYPE)
+	if (market->o->ID == Obj::TOWN)
 	{
 		switch (mode)
 		{
@@ -5261,7 +5257,7 @@ CUniversityWindow::CUniversityWindow(const CGHeroInstance * _hero, const IMarket
 	if ( market->o->ID == Obj::UNIVERSITY ) // this is adventure map university
 		titlePic = new CPicture("UNIVBLDG");
 	else
-	if (market->o->ID == GameConstants::TOWNI_TYPE)
+	if (market->o->ID == Obj::TOWN)
 		titlePic = new CAnimImage(CGI->townh->towns[ETownType::CONFLUX].clientInfo.buildingsIcons, EBuilding::MAGIC_UNIVERSITY);
 	else
 		tlog0<<"Error: Image for university was not found!\n";//This should not happen
@@ -5839,9 +5835,9 @@ CIntObject * CRClickPopup::createInfoWin(Point position, const CGObjectInstance 
 
 	switch(specific->ID)
 	{
-	case GameConstants::HEROI_TYPE:
+	case Obj::HERO:
 		return new CInfoBoxPopup(position, dynamic_cast<const CGHeroInstance *>(specific));
-	case GameConstants::TOWNI_TYPE:
+	case Obj::TOWN:
 		return new CInfoBoxPopup(position, dynamic_cast<const CGTownInstance *>(specific));
 	case Obj::GARRISON:
 	case Obj::GARRISON2:

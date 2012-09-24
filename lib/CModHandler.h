@@ -5,6 +5,7 @@
 #include "VCMI_Lib.h"
 #include "CCreatureHandler.h"
 #include "CArtHandler.h"
+#include "CTownHandler.h"
 
 /*
  * CModHandler.h, part of VCMI engine
@@ -75,7 +76,8 @@ public:
 
 	void loadConfigFromFile (std::string name);
 	void saveConfigToFile (std::string name);
-	CCreature * loadCreature (const JsonNode &node); //TODO: handler collections now use ModHandler vector index. Should they be aligned according to mods actually used??
+	CCreature * loadCreature (const JsonNode &node);
+	void recreateAdvMapDefs();
 	void recreateHandlers();
 
 	struct DLL_LINKAGE hardcodedFeatures

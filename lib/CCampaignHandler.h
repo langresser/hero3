@@ -55,8 +55,9 @@ public:
 
 	struct DLL_LINKAGE STravelBonus
 	{
-		ui8 type;	//0 - spell, 1 - monster, 2 - building, 3 - artifact, 4 - spell scroll, 5 - prim skill, 6 - sec skill, 7 - resource,
-					//8 - player from previous scenario, 9 - hero [???]
+		enum EBonusType {SPELL, MONSTER, BUILDING, ARTIFACT, SPELL_SCROLL, PRIMARY_SKILL, SECONDARY_SKILL, RESOURCE,
+			PLAYER_PREV_SCENARIO, HERO};
+		ui8 type; //uses EBonusType
 		si32 info1, info2, info3; //purpose depends on type
 
 		bool isBonusForHero() const;
@@ -124,7 +125,7 @@ class DLL_LINKAGE CCampaign
 public:
 	CCampaignHeader header;
 	std::vector<CCampaignScenario> scenarios;
-	std::map<int, std::vector<ui8> > mapPieces; //binary h3ms, scenario number -> map data
+	std::map<int, std::string > mapPieces; //binary h3ms, scenario number -> map data
 
 	template <typename Handler> void serialize(Handler &h, const int formatVersion)
 	{
@@ -139,17 +140,26 @@ public:
 class DLL_LINKAGE CCampaignState
 {
 public:
-	CCampaign *camp;
+	unique_ptr<CCampaign> camp;
 	std::string campaignName; 
 	std::vector<ui8> mapsConquered, mapsRemaining;
 	ui8 currentMap; 
 
-	void initNewCampaign(const StartInfo &si);
+	bmap<ui8, ui8> chosenCampaignBonuses; //used only for mode CAMPAIGN
+
+	//void initNewCampaign(const StartInfo &si);
 	void mapConquered(const std::vector<CGHeroInstance*> & heroes);
+	CScenarioTravel::STravelBonus getBonusForCurrentMap() const;
+	const CCampaignScenario &getCurrentScenario() const;
+	ui8 currentBonusID() const;
+
+	CCampaignState();
+	CCampaignState(unique_ptr<CCampaign> _camp);
 
 	template <typename Handler> void serialize(Handler &h, const int version)
 	{
 		h & camp & campaignName & mapsRemaining & mapsConquered & currentMap;
+		h & chosenCampaignBonuses;
 	}
 };
 
@@ -158,12 +168,12 @@ class DLL_LINKAGE CCampaignHandler
 	static CCampaignHeader readHeaderFromMemory( const ui8 *buffer, int & outIt );
 	static CCampaignScenario readScenarioFromMemory( const ui8 *buffer, int & outIt, int version, int mapVersion );
 	static CScenarioTravel readScenarioTravelFromMemory( const ui8 * buffer, int & outIt , int version);
-	/// returns h3c splitted in parts. 0 = h3c header, 1-end - maps (binary h3m)
+	/// returns h3c split in parts. 0 = h3c header, 1-end - maps (binary h3m)
 	/// headerOnly - only header will be decompressed, returned vector wont have any maps
 	static std::vector< std::vector<ui8> > getFile(const std::string & name, bool headerOnly);
 public:
 
 	static CCampaignHeader getHeader( const std::string & name); //name - name of appropriate file
 
-	static CCampaign * getCampaign(const std::string & name); //name - name of appropriate file
+	static unique_ptr<CCampaign> getCampaign(const std::string & name); //name - name of appropriate file
 };

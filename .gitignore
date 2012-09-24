@@ -13,3 +13,5 @@ Debug/
 *.manifest
 *.log
 *.lastbuildstate
+*.psess
+*.vsp

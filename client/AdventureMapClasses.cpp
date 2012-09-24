@@ -9,6 +9,7 @@
 #include "../lib/CObjectHandler.h"
 #include "../lib/CGameState.h"
 #include "../lib/CGeneralTextHandler.h"
+#include "../lib/CTownHandler.h"
 #include "../lib/NetPacks.h"
 #include "../lib/CHeroHandler.h"
 #include "CAdvmapInterface.h"
@@ -175,7 +176,7 @@ CHeroList::CEmptyHeroItem::CEmptyHeroItem()
 	auto mana = new CAnimImage("IMANA", 0, 0, move->pos.w + img->pos.w + 2, 1 );
 
 	pos.w = mana->pos.w + mana->pos.x - pos.x;
-	pos.h = __max(__max(move->pos.h + 1, mana->pos.h + 1), img->pos.h);
+	pos.h = std::max(std::max<ui16>(move->pos.h + 1, mana->pos.h + 1), img->pos.h);
 }
 
 CHeroList::CHeroItem::CHeroItem(CHeroList *parent, const CGHeroInstance * Hero):
@@ -188,15 +189,15 @@ CHeroList::CHeroItem::CHeroItem(CHeroList *parent, const CGHeroInstance * Hero):
 	mana     = new CAnimImage("IMANA", 0, 0, movement->pos.w + portrait->pos.w + 2, 1 );
 
 	pos.w = mana->pos.w + mana->pos.x - pos.x;
-	pos.h = __max(__max(movement->pos.h + 1, mana->pos.h + 1), portrait->pos.h);
+	pos.h = std::max(std::max<ui16>(movement->pos.h + 1, mana->pos.h + 1), portrait->pos.h);
 
 	update();
 }
 
 void CHeroList::CHeroItem::update()
 {
-	movement->setFrame(__min(movement->size()-1, hero->movement / 100));
-	mana->setFrame(__min(mana->size()-1, hero->mana / 5));
+	movement->setFrame(std::min<size_t>(movement->size()-1, hero->movement / 100));
+	mana->setFrame(std::min<size_t>(mana->size()-1, hero->mana / 5));
 	redraw();
 }
 
@@ -291,12 +292,7 @@ CIntObject * CTownList::CTownItem::genSelection()
 
 void CTownList::CTownItem::update()
 {
-	size_t iconIndex = town->subID*2;
-	if (!town->hasFort())
-		iconIndex += GameConstants::F_NUMBER*2;
-
-	if(town->builded >= CGI->modh->settings.MAX_BUILDING_PER_TURN)
-		iconIndex++;
+	size_t iconIndex = town->town->clientInfo.icons[town->hasFort()][town->builded >= CGI->modh->settings.MAX_BUILDING_PER_TURN];
 
 	picture->setFrame(iconIndex + 2);
 	redraw();
@@ -361,7 +357,7 @@ const SDL_Color & CMinimapInstance::getTileColor(const int3 & pos)
 	BOOST_FOREACH(const CGObjectInstance *obj, tile->blockingObjects)
 	{
 		//heroes will be blitted later
-		if (obj->ID == GameConstants::HEROI_TYPE)
+		if (obj->ID == Obj::HERO)
 			continue;
 
 		int player = obj->getOwner();

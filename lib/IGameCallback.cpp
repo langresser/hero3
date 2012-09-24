@@ -346,14 +346,14 @@ void CGameInfoCallback::getThievesGuildInfo(SThievesGuildInfo & thi, const CGObj
 {
 	//boost::shared_lock<boost::shared_mutex> lock(*gs->mx);
 	ERROR_RET_IF(!obj, "No guild object!");
-	ERROR_RET_IF(obj->ID == GameConstants::TOWNI_TYPE && !canGetFullInfo(obj), "Cannot get info about town guild object!");
+	ERROR_RET_IF(obj->ID == Obj::TOWN && !canGetFullInfo(obj), "Cannot get info about town guild object!");
 	//TODO: advmap object -> check if they're visited by our hero
 
-	if(obj->ID == GameConstants::TOWNI_TYPE  ||  obj->ID == 95) //it is a town or adv map tavern
+	if(obj->ID == Obj::TOWN  ||  obj->ID == Obj::TAVERN)
 	{
 		gs->obtainPlayersStats(thi, gs->players[obj->tempOwner].towns.size());
 	}
-	else if(obj->ID == 97) //Den of Thieves
+	else if(obj->ID == Obj::DEN_OF_THIEVES)
 	{
 		gs->obtainPlayersStats(thi, 20);
 	}
@@ -371,7 +371,7 @@ bool CGameInfoCallback::getTownInfo( const CGObjectInstance *town, InfoAboutTown
 	bool detailed = hasAccess(town->tempOwner);
 
 	//TODO vision support
-	if(town->ID == GameConstants::TOWNI_TYPE)
+	if(town->ID == Obj::TOWN)
 		dest.initFromTown(static_cast<const CGTownInstance *>(town), detailed);
 	else if(town->ID == Obj::GARRISON || town->ID == Obj::GARRISON2)
 		dest.initFromArmy(static_cast<const CArmedInstance *>(town), detailed);
@@ -492,7 +492,7 @@ std::vector <const CGObjectInstance * > CGameInfoCallback::getVisitableObjs(int3
 
 	BOOST_FOREACH(const CGObjectInstance * obj, t->visitableObjects)
 	{
-		if(player < 0 || obj->ID != GameConstants::EVENTI_TYPE) //hide events from players
+		if(player < 0 || obj->ID != Obj::EVENT) //hide events from players
 			ret.push_back(obj);
 	}
 
@@ -543,31 +543,38 @@ int CGameInfoCallback::canBuildStructure( const CGTownInstance *t, int ID )
 {
 	ERROR_RET_VAL_IF(!canGetFullInfo(t), "Town is not owned!", -1);
 
-	int ret = EBuildingState::ALLOWED;
-	if(t->builded >= VLC->modh->settings.MAX_BUILDING_PER_TURN)
-		ret = EBuildingState::CANT_BUILD_TODAY; //building limit
-
 	CBuilding * pom = t->town->buildings[ID];
 
 	if(!pom)
 		return EBuildingState::BUILDING_ERROR;
 
-	//checking resources
-	if(!pom->resources.canBeAfforded(getPlayer(t->tempOwner)->resources))
-		ret = EBuildingState::NO_RESOURCES; //lack of res
+	if(t->hasBuilt(ID))	//already built
+		return EBuildingState::ALREADY_PRESENT;
+
+	//can we build it?
+	if(t->forbiddenBuildings.find(ID)!=t->forbiddenBuildings.end())
+		return EBuildingState::FORBIDDEN; //forbidden
 
 	//checking for requirements
 	std::set<int> reqs = getBuildingRequiments(t, ID);//getting all requirements
 
+	bool notAllBuilt = false;
 	for( std::set<int>::iterator ri  =  reqs.begin(); ri != reqs.end(); ri++ )
 	{
-		if(!t->hasBuilt(*ri))
-			ret = EBuildingState::PREREQUIRES; //lack of requirements - cannot build
+		if(!t->hasBuilt(*ri)) //lack of requirements - cannot build
+		{
+			if(vstd::contains(t->forbiddenBuildings, *ri)) // not built requirement forbidden - same goes to this build
+				return EBuildingState::FORBIDDEN;
+			else
+				notAllBuilt = true; // no return here - we need to check if any required builds are forbidden
+		}
 	}
 
-	//can we build it?
-	if(t->forbiddenBuildings.find(ID)!=t->forbiddenBuildings.end())
-		ret = EBuildingState::FORBIDDEN; //forbidden
+	if(t->builded >= VLC->modh->settings.MAX_BUILDING_PER_TURN)
+		return EBuildingState::CANT_BUILD_TODAY; //building limit
+
+	if (notAllBuilt)
+		return EBuildingState::PREREQUIRES;
 
 	if(ID == 13) //capitol
 	{
@@ -578,8 +585,7 @@ int CGameInfoCallback::canBuildStructure( const CGTownInstance *t, int ID )
 			{
 				if(t->hasBuilt(EBuilding::CAPITOL))
 				{
-					ret = EBuildingState::HAVE_CAPITAL; //no more than one capitol
-					break;
+					return EBuildingState::HAVE_CAPITAL; //no more than one capitol
 				}
 			}
 		}
@@ -589,12 +595,14 @@ int CGameInfoCallback::canBuildStructure( const CGTownInstance *t, int ID )
 		const TerrainTile *tile = getTile(t->bestLocation(), false);
 		
 		if(!tile || tile->tertype != TerrainTile::water )
-			ret = EBuildingState::NO_WATER; //lack of water
+			return EBuildingState::NO_WATER; //lack of water
 	}
 
-	if(t->hasBuilt(ID))	//already built
-		ret = EBuildingState::ALREADY_PRESENT;
-	return ret;
+	//checking resources
+	if(!pom->resources.canBeAfforded(getPlayer(t->tempOwner)->resources))
+		return EBuildingState::NO_RESOURCES; //lack of res
+
+	return EBuildingState::ALLOWED;
 }
 
 std::set<int> CGameInfoCallback::getBuildingRequiments( const CGTownInstance *t, int ID )
@@ -682,7 +690,7 @@ bool CGameInfoCallback::isOwnedOrVisited(const CGObjectInstance *obj) const
 
 	const TerrainTile *t = getTile(obj->visitablePos()); //get entrance tile
 	const CGObjectInstance *visitor = t->visitableObjects.back(); //visitong hero if present or the obejct itself at last
-	return visitor->ID == GameConstants::HEROI_TYPE && canGetFullInfo(visitor); //owned or allied hero is a visitor
+	return visitor->ID == Obj::HERO && canGetFullInfo(visitor); //owned or allied hero is a visitor
 }
 
 int CGameInfoCallback::getCurrentPlayer() const

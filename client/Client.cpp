@@ -116,6 +116,7 @@ void CClient::waitForMoveAndSend(int color)
 {
 	try
 	{
+		setThreadName("CClient::waitForMoveAndSend");
 		assert(vstd::contains(battleints, color));
 		BattleAction ba = battleints[color]->activeStack(gs->curB->battleGetStackByID(gs->curB->activeStack, false));
 		MakeAction temp_action(ba);
@@ -515,12 +516,14 @@ void CClient::updatePaths()
 		calculatePaths(h);
 }
 
-void CClient::finishCampaign( CCampaignState * camp )
+void CClient::finishCampaign( shared_ptr<CCampaignState> camp )
 {
 }
 
-void CClient::proposeNextMission( CCampaignState * camp )
+void CClient::proposeNextMission(shared_ptr<CCampaignState> camp)
 {
+	endGame(false);
+	LOCPLINT = nullptr; //TODO free res
 	GH.pushInt(new CBonusSelection(camp));
 	GH.curInt = CGP;
 }
@@ -706,7 +709,7 @@ CConnection * CServerHandler::connectToServer()
 	if(!shared->sr->ready)
 		waitForServer();
 
-	th.update();
+	th.update(); //put breakpoint here to attach to server before it does something stupid
 	CConnection *ret = justConnectToServer(settings["server"]["server"].String(), port);
 
 	if(verbose)

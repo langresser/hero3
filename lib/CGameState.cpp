@@ -349,7 +349,7 @@ static CGObjectInstance * createObject(int id, int subid, int3 pos, int owner)
 	CGObjectInstance * nobj;
 	switch(id)
 	{
-	case GameConstants::HEROI_TYPE: //hero
+	case Obj::HERO:
 		{
 			CGHeroInstance * nobj = new CGHeroInstance();
 			nobj->pos = pos;
@@ -358,7 +358,7 @@ static CGObjectInstance * createObject(int id, int subid, int3 pos, int owner)
 			//nobj->initHero(ran);
 			return nobj;
 		}
-	case GameConstants::TOWNI_TYPE: //town
+	case Obj::TOWN:
 		nobj = new CGTownInstance;
 		break;
 	default: //rest of objects
@@ -377,7 +377,7 @@ static CGObjectInstance * createObject(int id, int subid, int3 pos, int owner)
 	nobj->defInfo->subid = subid;
 
 	//assigning defhandler
-	if(nobj->ID==GameConstants::HEROI_TYPE || nobj->ID==GameConstants::TOWNI_TYPE)
+	if(nobj->ID==Obj::HERO || nobj->ID==Obj::TOWN)
 		return nobj;
 	nobj->defInfo = VLC->dobjinfo->gobjs[id][subid];
 	return nobj;
@@ -467,17 +467,30 @@ int CGameState::pickHero(int owner)
 	const PlayerSettings &ps = scenarioOps->getIthPlayersSettings(owner);
 	if(!map->getHero(h = ps.hero,0)  &&  h>=0) //we haven't used selected hero
 		return h;
+
+	if(scenarioOps->mode == StartInfo::CAMPAIGN)
+	{
+		auto bonus = scenarioOps->campState->getBonusForCurrentMap();
+		if(bonus.type == CScenarioTravel::STravelBonus::HERO && owner == bonus.info1)
+		{
+			if(bonus.info2 != 0xffff && !map->getHero(bonus.info2)) //not random and not taken
+			{
+				return bonus.info2;
+			}
+		}
+	}
+
 	int i=0;
 
 	do //try to find free hero of our faction
 	{
 		i++;
 		h = ps.castle*GameConstants::HEROES_PER_TYPE*2+(ran()%(GameConstants::HEROES_PER_TYPE*2));//->scenarioOps->playerInfos[pru].hero = VLC->
-	} while( map->getHero(h)  &&  i<175);
-	if(i>174) //probably no free heroes - there's no point in further search, we'll take first free
+	} while( map->getHero(h)  &&  i<(GameConstants::HEROES_QUANTITY+18+1));
+	if(i>GameConstants::HEROES_QUANTITY+18) //probably no free heroes - there's no point in further search, we'll take first free
 	{
 		tlog3 << "Warning: cannot find free hero - trying to get first available..."<<std::endl;
-		for(int j=0; j<GameConstants::HEROES_PER_TYPE * 2 * GameConstants::F_NUMBER; j++)
+		for(int j=0; j<GameConstants::HEROES_QUANTITY; j++)
 			if(!map->getHero(j))
 				h=j;
 	}
@@ -500,7 +513,7 @@ std::pair<int,int> CGameState::pickObject (CGObjectInstance *obj)
 	case 69: //random relic artifact
 		return std::pair<int,int>(5, VLC->arth->getRandomArt (CArtifact::ART_RELIC));
 	case 70: //random hero
-		return std::pair<int,int>(GameConstants::HEROI_TYPE,pickHero(obj->tempOwner));
+		return std::pair<int,int>(Obj::HERO,pickHero(obj->tempOwner));
 	case 71: //random monster
 		return std::pair<int,int>(54,VLC->creh->pickRandomMonster(boost::ref(ran)));
 	case 72: //random monster lvl1
@@ -534,7 +547,7 @@ std::pair<int,int> CGameState::pickObject (CGObjectInstance *obj)
 				std::advance(iter, ran()%VLC->townh->towns.size());
 				f = iter->first;
 			}
-			return std::pair<int,int>(GameConstants::TOWNI_TYPE,f);
+			return std::pair<int,int>(Obj::TOWN,f);
 		}
 	case 162: //random monster lvl5
 		return std::pair<int,int>(54, VLC->creh->pickRandomMonster(boost::ref(ran), 5));
@@ -557,13 +570,15 @@ std::pair<int,int> CGameState::pickObject (CGObjectInstance *obj)
 				{
 					for(ui32 i=0;i<map->objects.size();i++)
 					{
-						if(map->objects[i]->ID==77 && dynamic_cast<CGTownInstance*>(map->objects[i].get())->identifier == info->identifier)
+						if(map->objects[i]->ID==Obj::RANDOM_TOWN
+							&& dynamic_cast<CGTownInstance*>(map->objects[i].get())->identifier == info->identifier)
 						{
 							randomizeObject(map->objects[i]); //we have to randomize the castle first
 							faction = map->objects[i]->subID;
 							break;
 						}
-						else if(map->objects[i]->ID==GameConstants::TOWNI_TYPE && dynamic_cast<CGTownInstance*>(map->objects[i].get())->identifier == info->identifier)
+						else if(map->objects[i]->ID==Obj::TOWN
+							&& dynamic_cast<CGTownInstance*>(map->objects[i].get())->identifier == info->identifier)
 						{
 							faction = map->objects[i]->subID;
 							break;
@@ -623,7 +638,7 @@ void CGameState::randomizeObject(CGObjectInstance *cur)
 	std::pair<int,int> ran = pickObject(cur);
 	if(ran.first<0 || ran.second<0) //this is not a random object, or we couldn't find anything
 	{
-		if(cur->ID==GameConstants::TOWNI_TYPE) //town - set def
+		if(cur->ID==Obj::TOWN) //town - set def
 		{
 			CGTownInstance *t = dynamic_cast<CGTownInstance*>(cur);
 			t->town = &VLC->townh->towns[t->subID];
@@ -636,7 +651,7 @@ void CGameState::randomizeObject(CGObjectInstance *cur)
 		}
 		return;
 	}
-	else if(ran.first==GameConstants::HEROI_TYPE)//special code for hero
+	else if(ran.first==Obj::HERO)//special code for hero
 	{
 		CGHeroInstance *h = dynamic_cast<CGHeroInstance *>(cur);
 		if(!h) {tlog2<<"Wrong random hero at "<<cur->pos<<std::endl; return;}
@@ -647,7 +662,7 @@ void CGameState::randomizeObject(CGObjectInstance *cur)
 		map->heroes.push_back(h);
 		return; //TODO: maybe we should do something with definfo?
 	}
-	else if(ran.first==GameConstants::TOWNI_TYPE)//special code for town
+	else if(ran.first==Obj::TOWN)//special code for town
 	{
 		CGTownInstance *t = dynamic_cast<CGTownInstance*>(cur);
 		if(!t) {tlog2<<"Wrong random town at "<<cur->pos<<std::endl; return;}
@@ -748,88 +763,78 @@ BattleInfo * CGameState::setupBattle(int3 tile, const CArmedInstance *armies[2],
 
 void CGameState::init(StartInfo * si)
 {
-	struct HLP
+	auto giveCampaignBonusToHero = [&](CGHeroInstance * hero)
 	{
-		//it's assumed that given hero should receive the bonus
-		static void giveCampaignBonusToHero(CGHeroInstance * hero, const StartInfo * si, const CScenarioTravel & st, CGameState *gs )
+		const CScenarioTravel::STravelBonus & curBonus = scenarioOps->campState->getBonusForCurrentMap();
+		if(curBonus.isBonusForHero())
 		{
-			const CScenarioTravel::STravelBonus & curBonus = st.bonusesToChoose[si->choosenCampaignBonus];
-			if(curBonus.isBonusForHero())
+			//apply bonus
+			switch (curBonus.type)
 			{
-				//apply bonus
-				switch (curBonus.type)
+			case CScenarioTravel::STravelBonus::SPELL:
+				hero->spells.insert(curBonus.info2);
+				break;
+			case CScenarioTravel::STravelBonus::MONSTER:
 				{
-				case 0: //spell
-					hero->spells.insert(curBonus.info2);
-					break;
-				case 1: //monster
+					for(int i=0; i<GameConstants::ARMY_SIZE; i++)
 					{
-						for(int i=0; i<GameConstants::ARMY_SIZE; i++)
+						if(hero->slotEmpty(i))
 						{
-							if(hero->slotEmpty(i))
-							{
-								hero->addToSlot(i, curBonus.info2, curBonus.info3);
-								break;
-							}
+							hero->addToSlot(i, curBonus.info2, curBonus.info3);
+							break;
 						}
 					}
-					break;
-				case 3: //artifact
-					gs->giveHeroArtifact(hero, curBonus.info2);
-					break;
-				case 4: //spell scroll
-					{
-						CArtifactInstance * scroll = CArtifactInstance::createScroll(VLC->spellh->spells[curBonus.info2]);
-						scroll->putAt(ArtifactLocation(hero, scroll->firstAvailableSlot(hero)));
-					}
-					break;
-				case 5: //prim skill
-					{
-						const ui8* ptr = reinterpret_cast<const ui8*>(&curBonus.info2);
-						for (int g=0; g<GameConstants::PRIMARY_SKILLS; ++g)
-						{
-							int val = ptr[g];
-							if (val == 0)
-							{
-								continue;
-							}
-							Bonus *bb = new Bonus(Bonus::PERMANENT, Bonus::PRIMARY_SKILL, Bonus::CAMPAIGN_BONUS, val, si->campSt->currentMap, g);
-							hero->addNewBonus(bb);
-						}
-					}
-					break;
-				case 6: //sec skills
-					hero->setSecSkillLevel(static_cast<CGHeroInstance::SecondarySkill>(curBonus.info2), curBonus.info3, true);
-					break;
 				}
+				break;
+			case CScenarioTravel::STravelBonus::ARTIFACT:
+				gs->giveHeroArtifact(hero, curBonus.info2);
+				break;
+			case CScenarioTravel::STravelBonus::SPELL_SCROLL:
+				{
+					CArtifactInstance * scroll = CArtifactInstance::createScroll(VLC->spellh->spells[curBonus.info2]);
+					scroll->putAt(ArtifactLocation(hero, scroll->firstAvailableSlot(hero)));
+				}
+				break;
+			case CScenarioTravel::STravelBonus::PRIMARY_SKILL:
+				{
+					const ui8* ptr = reinterpret_cast<const ui8*>(&curBonus.info2);
+					for (int g=0; g<GameConstants::PRIMARY_SKILLS; ++g)
+					{
+						int val = ptr[g];
+						if (val == 0)
+						{
+							continue;
+						}
+						Bonus *bb = new Bonus(Bonus::PERMANENT, Bonus::PRIMARY_SKILL, Bonus::CAMPAIGN_BONUS, val, scenarioOps->campState->currentMap, g);
+						hero->addNewBonus(bb);
+					}
+				}
+				break;
+			case CScenarioTravel::STravelBonus::SECONDARY_SKILL:
+				hero->setSecSkillLevel(static_cast<CGHeroInstance::SecondarySkill>(curBonus.info2), curBonus.info3, true);
+				break;
 			}
 		}
+	};
 
-		static std::vector<const PlayerSettings *> getHumanPlayerInfo(const StartInfo * si)
+	auto getHumanPlayerInfo = [&]() -> std::vector<const PlayerSettings *>
+	{
+		std::vector<const PlayerSettings *> ret;
+		for(auto it = scenarioOps->playerInfos.cbegin(); 
+			it != scenarioOps->playerInfos.cend(); ++it)
 		{
-			std::vector<const PlayerSettings *> ret;
-			for(std::map<int, PlayerSettings>::const_iterator it = si->playerInfos.begin();
-				it != si->playerInfos.end(); ++it)
-			{
-				if(it->second.human)
-					ret.push_back(&it->second);
-			}
-
-			return ret;
+			if(it->second.human)
+				ret.push_back(&it->second);
 		}
 
-		static void replaceHero( CGameState * gs, int objId, CGHeroInstance * ghi )
-		{
-			ghi->id = objId;
-			gs->map->objects[objId] = ghi;
-			gs->map->heroes.push_back(ghi);
-		}
+		return ret;
+	};
 
-		//sort in descending order by power
-		static bool heroPowerSorter(const CGHeroInstance * a, const CGHeroInstance * b)
-		{
-			return a->getHeroStrength() > b->getHeroStrength();
-		}
+	auto replaceHero = [&](int objId, CGHeroInstance * ghi)
+	{
+		ghi->id = objId;
+		gs->map->objects[objId] = ghi;
+		gs->map->heroes.push_back(ghi);
 	};
 
 	tlog0 << "\tUsing random seed: "<< si->seedToBeUsed << std::endl;
@@ -845,13 +850,12 @@ void CGameState::init(StartInfo * si)
 		break;
 	case StartInfo::CAMPAIGN:
 		{
-			campaign = new CCampaignState();
-			campaign->initNewCampaign(*scenarioOps);
-			assert(vstd::contains(campaign->camp->mapPieces, scenarioOps->campSt->currentMap));
+			auto campaign = scenarioOps->campState;
+			assert(vstd::contains(campaign->camp->mapPieces, scenarioOps->campState->currentMap));
 
-			std::vector<ui8> &mapContent = campaign->camp->mapPieces[scenarioOps->campSt->currentMap];
+			std::string &mapContent = campaign->camp->mapPieces[scenarioOps->campState->currentMap];
 			map = new Mapa();
-			map->initFromBytes((const ui8*)mapContent.data(), mapContent.size());
+			map->initFromBytes((const ui8*)mapContent.c_str(), mapContent.size());
 		}
 		break;
 	case StartInfo::DUEL:
@@ -882,6 +886,8 @@ void CGameState::init(StartInfo * si)
 	day = 0;
 	loadTownDInfos();
 
+	tlog4 << "Initialization:";
+	tlog4 << "\tPicking grail position";
  	//pick grail location
  	if(map->grailPos.x < 0 || map->grailRadious) //grail not set or set within a radius around some place
  	{
@@ -911,7 +917,7 @@ void CGameState::init(StartInfo * si)
 
 		//remove tiles with holes
 		for(ui32 no=0; no<map->objects.size(); ++no)
-			if(map->objects[no]->ID == 124)
+			if(map->objects[no]->ID == Obj::HOLE)
 				allowedPos -= map->objects[no]->pos;
 
 		if(allowedPos.size())
@@ -921,28 +927,29 @@ void CGameState::init(StartInfo * si)
  	}
 
 	//picking random factions for players
+	tlog4 << "\tPicking random factions for players";
 	for(std::map<int, PlayerSettings>::iterator it = scenarioOps->playerInfos.begin();
 		it != scenarioOps->playerInfos.end(); ++it)
 	{
 		if(it->second.castle==-1)
 		{
-			int f;
-			do
-			{
-				f = ran()%GameConstants::F_NUMBER;
-			}while(!(map->players[it->first].allowedFactions  &  1<<f));
-			it->second.castle = f;
+			int randomID = ran() % map->players[it->first].allowedFactions.size();
+			auto iter = map->players[it->first].allowedFactions.begin();
+			std::advance(iter, randomID);
+
+			it->second.castle = *iter;
 		}
 	}
 
 	//randomizing objects
+	tlog4 << "\tRandomizing objects";
 	BOOST_FOREACH(CGObjectInstance *obj, map->objects)
 	{
 		randomizeObject(obj);
 		obj->hoverName = VLC->generaltexth->names[obj->ID];
 
 		//handle Favouring Winds - mark tiles under it
-		if(obj->ID == 225)
+		if(obj->ID == Obj::FAVORABLE_WINDS)
 			for (int i = 0; i < obj->getWidth() ; i++)
 				for (int j = 0; j < obj->getHeight() ; j++)
 				{
@@ -954,6 +961,7 @@ void CGameState::init(StartInfo * si)
 	//std::cout<<"\tRandomizing objects: "<<th.getDif()<<std::endl;
 
 	/*********creating players entries in gs****************************************/
+	tlog4 << "\tCreating player entries in gs";
 	for(std::map<int, PlayerSettings>::iterator it = scenarioOps->playerInfos.begin();
 		it != scenarioOps->playerInfos.end(); ++it)
 	{
@@ -967,10 +975,13 @@ void CGameState::init(StartInfo * si)
 	}
 
 	/*********give starting hero****************************************/
+	tlog4 << "\tGiving starting hero";
 	for(int i=0;i<GameConstants::PLAYER_LIMIT;i++)
 	{
 		const PlayerInfo &p = map->players[i];
-		bool generateHero = (p.generateHeroAtMainTown && p.hasMainTown);
+		bool campaignGiveHero = scenarioOps->playerInfos[i].human && scenarioOps->mode == StartInfo::CAMPAIGN &&
+			scenarioOps->campState->getBonusForCurrentMap().type == CScenarioTravel::STravelBonus::HERO;
+		bool generateHero = (p.generateHeroAtMainTown || campaignGiveHero) && p.hasMainTown;
 		if(generateHero && vstd::contains(scenarioOps->playerInfos, i))
 		{
 			int3 hpos = p.posOfMainTown;
@@ -980,7 +991,7 @@ void CGameState::init(StartInfo * si)
 			if(scenarioOps->playerInfos[i].hero == -1)
 				scenarioOps->playerInfos[i].hero = h;
 
-			CGHeroInstance * nnn =  static_cast<CGHeroInstance*>(createObject(GameConstants::HEROI_TYPE,h,hpos,i));
+			CGHeroInstance * nnn =  static_cast<CGHeroInstance*>(createObject(Obj::HERO,h,hpos,i));
 			nnn->id = map->objects.size();
 			nnn->initHero();
 			map->heroes.push_back(nnn);
@@ -990,16 +1001,15 @@ void CGameState::init(StartInfo * si)
 	}
 
 	/*************************replace hero placeholders*****************************/
-
-	if (campaign)
+	tlog4 << "\tReplacing hero placeholders";
+	if (scenarioOps->campState)
 	{
-
-		CScenarioTravel::STravelBonus bonus =
-			campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions.bonusesToChoose[scenarioOps->choosenCampaignBonus];
+		auto campaign = scenarioOps->campState;
+		CScenarioTravel::STravelBonus bonus = campaign->getBonusForCurrentMap();
 
 
 		std::vector<CGHeroInstance *> Xheroes;
-		if (bonus.type == 8) //hero crossover
+		if (bonus.type == CScenarioTravel::STravelBonus::PLAYER_PREV_SCENARIO)
 		{
 			Xheroes = campaign->camp->scenarios[bonus.info2].crossoverHeroes;
 		}
@@ -1008,7 +1018,7 @@ void CGameState::init(StartInfo * si)
 		for(int g=0; g<map->objects.size(); ++g)
 		{
 			CGObjectInstance * obj = map->objects[g];
-			if (obj->ID != 214) //not a placeholder
+			if (obj->ID != Obj::HERO_PLACEHOLDER)
 			{
 				continue;
 			}
@@ -1022,7 +1032,7 @@ void CGameState::init(StartInfo * si)
 					if (ghi->subID == hp->subID)
 					{
 						found = true;
-						HLP::replaceHero(this, g, ghi);
+						replaceHero(g, ghi);
 						Xheroes -= ghi;
 						break;
 					}
@@ -1036,11 +1046,14 @@ void CGameState::init(StartInfo * si)
 
 		//selecting heroes by power
 
-		std::sort(Xheroes.begin(), Xheroes.end(), HLP::heroPowerSorter);
+		std::sort(Xheroes.begin(), Xheroes.end(), [](const CGHeroInstance * a, const CGHeroInstance * b)
+			{
+				return a->getHeroStrength() > b->getHeroStrength();
+			}); //sort, descending strength
 		for(int g=0; g<map->objects.size(); ++g)
 		{
 			CGObjectInstance * obj = map->objects[g];
-			if (obj->ID != 214) //not a placeholder
+			if (obj->ID != Obj::HERO_PLACEHOLDER)
 			{
 				continue;
 			}
@@ -1049,7 +1062,7 @@ void CGameState::init(StartInfo * si)
 			if (hp->subID == 0xFF) //select by power
 			{
 				if(Xheroes.size() > hp->power - 1)
-					HLP::replaceHero(this, g, Xheroes[hp->power - 1]);
+					replaceHero(g, Xheroes[hp->power - 1]);
 				else
 					tlog2 << "Warning, to hero to replace!\n";
 				//we don't have to remove hero from Xheroes because it would destroy the order and duplicates shouldn't happen
@@ -1058,6 +1071,7 @@ void CGameState::init(StartInfo * si)
 	}
 
 	/******************RESOURCES****************************************************/
+	tlog4 << "\tSetting up resources";
 	const JsonNode config(ResourceID("config/startres.json"));
 	const JsonVector &vector = config["difficulty"].Vector();
 	const JsonNode &level = vector[scenarioOps->difficulty];
@@ -1078,11 +1092,10 @@ void CGameState::init(StartInfo * si)
 	//give start resource bonus in case of campaign
 	if (scenarioOps->mode == StartInfo::CAMPAIGN)
 	{
-		CScenarioTravel::STravelBonus chosenBonus =
-			campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions.bonusesToChoose[scenarioOps->choosenCampaignBonus];
-		if(chosenBonus.type == 7) //resource
+		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
+		if(chosenBonus.type == CScenarioTravel::STravelBonus::RESOURCE)
 		{
-			std::vector<const PlayerSettings *> people = HLP::getHumanPlayerInfo(scenarioOps); //players we will give resource bonus
+			std::vector<const PlayerSettings *> people = getHumanPlayerInfo(); //players we will give resource bonus
 			BOOST_FOREACH(const PlayerSettings *ps, people)
 			{
 				std::vector<int> res; //resources we will give
@@ -1112,6 +1125,7 @@ void CGameState::init(StartInfo * si)
 
 
 	/*************************HEROES************************************************/
+	tlog4 << "\tSetting up heroes";
 	std::set<int> hids; //hero ids to create pool
 
 	for(ui32 i=0; i<map->allowedHeroes.size(); i++) //add to hids all allowed heroes
@@ -1133,7 +1147,7 @@ void CGameState::init(StartInfo * si)
 
 	for (ui32 i=0; i<map->objects.size();i++) //prisons
 	{
-		if (map->objects[i]->ID == 62)
+		if (map->objects[i]->ID == Obj::PRISON)
 			hids.erase(map->objects[i]->subID);
 	}
 
@@ -1163,8 +1177,7 @@ void CGameState::init(StartInfo * si)
 	if (scenarioOps->mode == StartInfo::CAMPAIGN) //give campaign bonuses for specific / best hero
 	{
 
-		CScenarioTravel::STravelBonus chosenBonus =
-			campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions.bonusesToChoose[scenarioOps->choosenCampaignBonus];
+		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
 		if (chosenBonus.isBonusForHero() && chosenBonus.info1 != 0xFFFE) //exclude generated heroes
 		{
 			//find human player
@@ -1194,7 +1207,7 @@ void CGameState::init(StartInfo * si)
 				if(maxB < 0)
 					tlog2 << "Warning - cannot give bonus to hero cause there are no heroes!\n";
 				else
-					HLP::giveCampaignBonusToHero(heroes[maxB], scenarioOps, campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions, this);
+					giveCampaignBonusToHero(heroes[maxB]);
 			}
 			else //specific hero
 			{
@@ -1202,7 +1215,7 @@ void CGameState::init(StartInfo * si)
 				{
 					if (heroes[b]->subID == chosenBonus.info1)
 					{
-						HLP::giveCampaignBonusToHero(heroes[b], scenarioOps, campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions, this);
+						giveCampaignBonusToHero(heroes[b]);
 						break;
 					}
 				}
@@ -1211,6 +1224,7 @@ void CGameState::init(StartInfo * si)
 	}
 
 	/*************************FOG**OF**WAR******************************************/
+	tlog4 << "\tFog of war";
 	for(std::map<ui8, TeamState>::iterator k=teams.begin(); k!=teams.end(); ++k)
 	{
 		k->second.fogOfWarMap.resize(map->width);
@@ -1239,6 +1253,7 @@ void CGameState::init(StartInfo * si)
 		}
 	}
 
+	tlog4 << "\tStarting bonuses";
 	for(std::map<ui8, PlayerState>::iterator k=players.begin(); k!=players.end(); ++k)
 	{
 		//starting bonus
@@ -1280,6 +1295,7 @@ void CGameState::init(StartInfo * si)
 		}
 	}
 	/****************************TOWNS************************************************/
+	tlog4 << "\tTowns";
 	for ( int i=0; i<4; i++)
 		CGTownInstance::universitySkills.push_back(14+i);//skills for university
 
@@ -1302,7 +1318,7 @@ void CGameState::init(StartInfo * si)
 				vti->builtBuildings.insert(EBuilding::DWELL_FIRST+1);
 		}
 
-		if (vstd::contains(vti->builtBuildings, EBuilding::SHIPYARD) && vti->state()==2)
+		if (vstd::contains(vti->builtBuildings, EBuilding::SHIPYARD) && vti->state()==IBoatGenerator::TILE_BLOCKED)
 			vti->builtBuildings.erase(EBuilding::SHIPYARD);//if we have harbor without water - erase it (this is H3 behaviour)
 
 		//init hordes
@@ -1377,10 +1393,9 @@ void CGameState::init(StartInfo * si)
 	//campaign bonuses for towns
 	if (scenarioOps->mode == StartInfo::CAMPAIGN)
 	{
-		CScenarioTravel::STravelBonus chosenBonus =
-			campaign->camp->scenarios[scenarioOps->campSt->currentMap].travelOptions.bonusesToChoose[scenarioOps->choosenCampaignBonus];
+		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
 
-		if (chosenBonus.type == 2)
+		if (chosenBonus.type == CScenarioTravel::STravelBonus::BUILDING)
 		{
 			for (int g=0; g<map->towns.size(); ++g)
 			{
@@ -1401,12 +1416,12 @@ void CGameState::init(StartInfo * si)
 		}
 
 	}
-
+	tlog4 << "\tObject initialization";
 	objCaller->preInit();
 	BOOST_FOREACH(CGObjectInstance *obj, map->objects)
 	{
 		obj->initObj();
-		if(obj->ID == 62) //prison also needs to initialize hero
+		if(obj->ID == Obj::PRISON) //prison also needs to initialize hero
 			static_cast<CGHeroInstance*>(obj)->initHero();
 	}
 	BOOST_FOREACH(CGObjectInstance *obj, map->objects)
@@ -1453,6 +1468,7 @@ void CGameState::init(StartInfo * si)
 	}
 
 
+	tlog4 << "\tChecking objectives";
 	map->checkForObjectives(); //needs to be run when all objects are properly placed
 
 	int seedAfterInit = ran();
@@ -1649,10 +1665,10 @@ UpgradeInfo CGameState::getUpgradeInfo(const CStackInstance &stack)
 	UpgradeInfo ret;
 	const CCreature *base = stack.type;
 
-	const CGHeroInstance *h = stack.armyObj->ID == GameConstants::HEROI_TYPE ? static_cast<const CGHeroInstance*>(stack.armyObj) : NULL;
+	const CGHeroInstance *h = stack.armyObj->ID == Obj::HERO ? static_cast<const CGHeroInstance*>(stack.armyObj) : NULL;
 	const CGTownInstance *t = NULL;
 
-	if(stack.armyObj->ID == GameConstants::TOWNI_TYPE)
+	if(stack.armyObj->ID == Obj::TOWN)
 		t = static_cast<const CGTownInstance *>(stack.armyObj);
 	else if(h)
 	{	//hero speciality
@@ -2008,7 +2024,10 @@ int CGameState::victoryCheck( ui8 player ) const
 
 	if (p->enteredWinningCheatCode)
 	{ //cheater or tester, but has entered the code...
-		return 1;
+		if(map->victoryCondition.condition == EVictoryConditionType::WINSTANDARD)
+			return -1;
+		else
+			return 1;
 	}
 
 	if(p->human || map->victoryCondition.appliesToAI)
@@ -2213,7 +2232,7 @@ struct statsHLP
 		}
 		return h[best];
 	}
-
+	
 	//calculates total number of artifacts that belong to given player
 	static int getNumberOfArts(const PlayerState * ps)
 	{
@@ -2791,10 +2810,13 @@ DuelParameters DuelParameters::fromJSON(const std::string &fname)
 
 		if(ss.heroId != -1)
 		{
-			auto spells = n["spells"];
+			const JsonNode & spells = n["spells"];
 			if(spells.getType() == JsonNode::DATA_STRING  &&  spells.String() == "all")
+			{
 				BOOST_FOREACH(auto spell, VLC->spellh->spells)
-					ss.spells.insert(spell->id);
+					if(spell->id <= Spells::SUMMON_AIR_ELEMENTAL) 
+						ss.spells.insert(spell->id);
+			}
 			else
 				BOOST_FOREACH(const JsonNode &spell, n["spells"].Vector())
 					ss.spells.insert(spell.Float());
@@ -2922,7 +2944,7 @@ void CPathfinder::calculatePaths(int3 src /*= int3(-1,-1,-1)*/, int movement /*=
 		neighbours.clear();
 
 		//handling subterranean gate => it's exit is the only neighbour
-		bool subterraneanEntry = (ct->topVisitableID() == GameConstants::SUBTERRANEAN_GATE_TYPE && useSubterraneanGates);
+		bool subterraneanEntry = (ct->topVisitableID() == Obj::SUBTERRANEAN_GATE && useSubterraneanGates);
 		if(subterraneanEntry)
 		{
 			//try finding the exit gate
@@ -2962,13 +2984,13 @@ void CPathfinder::calculatePaths(int3 src /*= int3(-1,-1,-1)*/, int movement /*=
 				continue;
 
 			//special case -> hero embarked a boat standing on a guarded tile -> we must allow to move away from that tile
-			if(cp->accessible == CGPathNode::VISITABLE && guardedSource && cp->theNodeBefore->land && ct->topVisitableID() == GameConstants::BOATI_TYPE)
+			if(cp->accessible == CGPathNode::VISITABLE && guardedSource && cp->theNodeBefore->land && ct->topVisitableID() == Obj::BOAT)
 				guardedSource = false;
 
 			int cost = gs->getMovementCost(hero, cp->coord, dp->coord, movement);
 
 			//special case -> moving from src Subterranean gate to dest gate -> it's free
-			if(subterraneanEntry && destTopVisObjID == GameConstants::SUBTERRANEAN_GATE_TYPE && cp->coord.z != dp->coord.z)
+			if(subterraneanEntry && destTopVisObjID == Obj::SUBTERRANEAN_GATE && cp->coord.z != dp->coord.z)
 				cost = 0;
 
 			int remains = movement - cost;
@@ -3004,7 +3026,7 @@ void CPathfinder::calculatePaths(int3 src /*= int3(-1,-1,-1)*/, int movement /*=
 
 				if (dp->accessible == CGPathNode::ACCESSIBLE
 					|| (useEmbarkCost && allowEmbarkAndDisembark)
-					|| destTopVisObjID == GameConstants::SUBTERRANEAN_GATE_TYPE
+					|| destTopVisObjID == Obj::SUBTERRANEAN_GATE
 					|| (guardedDst && !guardedSource)) // Can step into a hostile tile once.
 				{
 					mq.push_back(dp);
@@ -3043,7 +3065,7 @@ CGPathNode::EAccessibility CPathfinder::evaluateAccessibility(const TerrainTile 
 
 	if(tinfo->visitable)
 	{
-		if(tinfo->visitableObjects.front()->ID == 80 && tinfo->visitableObjects.back()->ID == GameConstants::HEROI_TYPE && tinfo->visitableObjects.back()->tempOwner != hero->tempOwner) //non-owned hero stands on Sanctuary
+		if(tinfo->visitableObjects.front()->ID == 80 && tinfo->visitableObjects.back()->ID == Obj::HERO && tinfo->visitableObjects.back()->tempOwner != hero->tempOwner) //non-owned hero stands on Sanctuary
 		{
 			return CGPathNode::BLOCKED;
 		}
@@ -3059,7 +3081,7 @@ CGPathNode::EAccessibility CPathfinder::evaluateAccessibility(const TerrainTile 
 				{
 					return CGPathNode::BLOCKVIS;
 				}
-				else if(obj->ID != GameConstants::EVENTI_TYPE) //pathfinder should ignore placed events
+				else if(obj->ID != Obj::EVENT) //pathfinder should ignore placed events
 				{
 					ret =  CGPathNode::VISITABLE;
 				}
@@ -3084,9 +3106,9 @@ bool CPathfinder::goodForLandSeaTransition()
 		{
 			if(dp->accessible == CGPathNode::ACCESSIBLE || destTopVisObjID < 0) //cannot enter empty water tile from land -> it has to be visitable
 				return false;
-			if(destTopVisObjID != GameConstants::HEROI_TYPE && destTopVisObjID != GameConstants::BOATI_TYPE) //only boat or hero can be accessed from land
+			if(destTopVisObjID != Obj::HERO && destTopVisObjID != Obj::BOAT) //only boat or hero can be accessed from land
 				return false;
-			if(destTopVisObjID == GameConstants::BOATI_TYPE)
+			if(destTopVisObjID == Obj::BOAT)
 				useEmbarkCost = 1;
 		}
 		else //disembark
