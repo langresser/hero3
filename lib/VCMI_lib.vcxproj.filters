@@ -41,13 +41,13 @@
     <ClCompile Include="ResourceSet.cpp" />
     <ClCompile Include="StdInc.cpp" />
     <ClCompile Include="VCMI_Lib.cpp" />
-    <ClCompile Include="AI\Fuzzy.cpp">
+    <ClCompile Include="..\AI\VCAI\Fuzzy.cpp">
       <Filter>AI</Filter>
     </ClCompile>
-    <ClCompile Include="AI\StupidAI.cpp">
+    <ClCompile Include="..\AI\VCAI\VCAI.cpp">
       <Filter>AI</Filter>
     </ClCompile>
-    <ClCompile Include="AI\VCAI.cpp">
+    <ClCompile Include="..\AI\StupidAI\StupidAI.cpp">
       <Filter>AI</Filter>
     </ClCompile>
   </ItemGroup>
@@ -108,13 +108,13 @@
     <ClInclude Include="UnlockGuard.h" />
     <ClInclude Include="VCMI_Lib.h" />
     <ClInclude Include="VCMIDirs.h" />
-    <ClInclude Include="AI\Fuzzy.h">
+    <ClInclude Include="..\AI\VCAI\VCAI.h">
       <Filter>AI</Filter>
     </ClInclude>
-    <ClInclude Include="AI\StupidAI.h">
+    <ClInclude Include="..\AI\VCAI\Fuzzy.h">
       <Filter>AI</Filter>
     </ClInclude>
-    <ClInclude Include="AI\VCAI.h">
+    <ClInclude Include="..\AI\StupidAI\StupidAI.h">
       <Filter>AI</Filter>
     </ClInclude>
   </ItemGroup>

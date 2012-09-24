@@ -6,6 +6,15 @@
 #include "../../lib/CCreatureHandler.h"
 
 CPlayerBattleCallback * cbc;
+extern CBattleGameInterface* GetNewBattleAI()
+{
+	return new CStupidAI();
+}
+
+extern void ReleaseBattleAI(CBattleGameInterface* i)
+{
+	delete (CStupidAI*)i;
+}
 
 CStupidAI::CStupidAI(void)
 	: side(-1), cb(NULL)

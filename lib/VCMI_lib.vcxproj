@@ -308,9 +308,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="AI\Fuzzy.cpp" />
-    <ClCompile Include="AI\StupidAI.cpp" />
-    <ClCompile Include="AI\VCAI.cpp" />
+    <ClCompile Include="..\AI\StupidAI\StupidAI.cpp" />
+    <ClCompile Include="..\AI\VCAI\Fuzzy.cpp" />
+    <ClCompile Include="..\AI\VCAI\VCAI.cpp" />
     <ClCompile Include="BattleAction.cpp" />
     <ClCompile Include="BattleHex.cpp" />
     <ClCompile Include="BattleState.cpp" />
@@ -366,10 +366,10 @@
     <ClCompile Include="VCMI_Lib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\AI\StupidAI\StupidAI.h" />
+    <ClInclude Include="..\AI\VCAI\Fuzzy.h" />
+    <ClInclude Include="..\AI\VCAI\VCAI.h" />
     <ClInclude Include="..\Global.h" />
-    <ClInclude Include="AI\Fuzzy.h" />
-    <ClInclude Include="AI\StupidAI.h" />
-    <ClInclude Include="AI\VCAI.h" />
     <ClInclude Include="AI_Base.h" />
     <ClInclude Include="BattleAction.h" />
     <ClInclude Include="BattleHex.h" />

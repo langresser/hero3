@@ -1,22 +1,11 @@
 #include "StdInc.h"
-#include <cassert>
-#include <boost/lexical_cast.hpp>
-#include <boost/format.hpp>
-#include <boost/range/algorithm.hpp>
-#include <boost/type_traits.hpp>
-
-#include <boost/foreach.hpp>
-#include <boost/thread/tss.hpp>
+#include "VCAI.h"
+#include "../../lib/UnlockGuard.h"
+#include "../../lib/CObjectHandler.h"
 #include "Fuzzy.h"
 
 #include <fstream>
 #include <queue>
-
-#include "lib/UnlockGuard.h"
-#include "lib/CObjectHandler.h"
-#include "lib/CCreatureSet.h"
-#include "lib/Connection.h"   // 注意包含顺序，在VCAI.h之前
-#include "VCAI.h"
 
 using boost::format;
 using boost::str;
@@ -28,7 +17,6 @@ extern CLogger &aiLogger;
 #define BNLOG(txt, formattingEls) {int i = logger.lvl; while(i--) aiLogger << "\t"; aiLogger << (boost::format(txt) % formattingEls) << "\n";}
 //#define LOG_ENTRY PNLOG("Entered " __FUNCTION__)
 #define LOG_ENTRY
-
 
 #define I_AM_ELEMENTAR return CGoal(*this).setisElementar(true)
 CLogger &aiLogger = tlog6;
@@ -45,6 +33,11 @@ using namespace vstd;
 //one thread may be turn of AI and another will be handling a side effect for AI2
 boost::thread_specific_ptr<CCallback> cb;
 boost::thread_specific_ptr<VCAI> ai;
+
+extern CGlobalAI* GetNewAI()
+{
+	return new VCAI();
+}
 
 //std::map<int, std::map<int, int> > HeroView::infosCount;
 
@@ -412,20 +405,20 @@ ui64 evaluateDanger(const CGObjectInstance *obj)
 
 	switch(obj->ID)
 	{
-	case GameConstants::HEROI_TYPE:
+	case Obj::HERO:
 		{
 			InfoAboutHero iah;
 			cb->getHeroInfo(obj, iah);
 			return iah.army.getStrength();
 		}
-	case GameConstants::TOWNI_TYPE:
+	case Obj::TOWN:
 	case Obj::GARRISON: case Obj::GARRISON2: //garrison
 		{
 			InfoAboutTown iat;
 			cb->getTownInfo(obj, iat);
 			return iat.army.getStrength();
 		}
-	case GameConstants::CREI_TYPE:
+	case Obj::MONSTER:
 		{
 			//TODO!!!!!!!!
 			const CGCreature *cre = dynamic_cast<const CGCreature*>(obj);
@@ -738,7 +731,7 @@ void VCAI::objectRemoved(const CGObjectInstance *obj)
 	//there are other places where CGObjectinstance ptrs are stored...
 	//
 
-	if(obj->ID == GameConstants::HEROI_TYPE  &&  obj->tempOwner == playerID)
+	if(obj->ID == Obj::HERO  &&  obj->tempOwner == playerID)
 	{
 		lostHero(cb->getHero(obj->id)); //we can promote, since objectRemoved is killed just before actual deletion
 	}
@@ -1127,7 +1120,7 @@ void VCAI::performObjectInteraction(const CGObjectInstance * obj, HeroPtr h)
 			recruitCreatures (dynamic_cast<const CGDwelling *>(obj));
 			checkHeroArmy (h);
 			break;
-		case GameConstants::TOWNI_TYPE:
+		case Obj::TOWN:
 			moveCreaturesToHero (dynamic_cast<const CGTownInstance *>(obj));
 			townVisitsThisWeek[h].push_back(h->visitedTown);
 			break;
@@ -1456,7 +1449,7 @@ std::vector<const CGObjectInstance *> VCAI::getPossibleDestinations(HeroPtr h)
 			const CGObjectInstance *topObj = cb->getVisitableObjs(pos).back(); //it may be hero visiting this obj
 			//we don't try visiting object on which allied or owned hero stands
 			// -> it will just trigger exchange windows and AI will be confused that obj behind doesn't get visited
-			if(topObj->ID == GameConstants::HEROI_TYPE  &&  cb->getPlayerRelations(h->tempOwner, topObj->tempOwner) != 0)
+			if(topObj->ID == Obj::HERO  &&  cb->getPlayerRelations(h->tempOwner, topObj->tempOwner) != 0)
 				return true;
 
 			return false;
@@ -1726,7 +1719,7 @@ bool VCAI::isAccessibleForHero(const int3 & pos, HeroPtr h, bool includeAllies /
 	{ //don't visit tile occupied by allied hero
 		BOOST_FOREACH (auto obj, cb->getVisitableObjs(pos))
 		{
-			if (obj->ID == GameConstants::HEROI_TYPE && obj->tempOwner == h->tempOwner && obj != h)
+			if (obj->ID == Obj::HERO && obj->tempOwner == h->tempOwner && obj != h)
 				return false;
 		}
 	}
@@ -2910,7 +2903,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 			}
 
 			auto topObj = backOrNull(cb->getVisitableObjs(tileToHit));
-			if(topObj && topObj->ID == GameConstants::HEROI_TYPE && cb->getPlayerRelations(h->tempOwner, topObj->tempOwner) != 0)
+			if(topObj && topObj->ID == Obj::HERO && cb->getPlayerRelations(h->tempOwner, topObj->tempOwner) != 0)
 			{
 				std::string problem = boost::str(boost::format("%s stands in the way of %s.\n") % topObj->getHoverText()  % h->getHoverText());
 				throw cannotFulfillGoalException(problem);
@@ -3023,7 +3016,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 	case DIG_AT_TILE:
 		{
 			const CGObjectInstance *firstObj = frontOrNull(cb->getVisitableObjs(tile));
-			if(firstObj && firstObj->ID == GameConstants::HEROI_TYPE && firstObj->tempOwner == ai->playerID) //we have hero at dest
+			if(firstObj && firstObj->ID == Obj::HERO && firstObj->tempOwner == ai->playerID) //we have hero at dest
 			{
 				const CGHeroInstance *h = dynamic_cast<const CGHeroInstance *>(firstObj);
 				return CGoal(*this).sethero(h).setisElementar(true);
@@ -3049,7 +3042,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 			{
 				if(const IMarket *m = IMarket::castFrom(obj, false))
 				{
-					if(obj->ID == GameConstants::TOWNI_TYPE && obj->tempOwner == ai->playerID && m->allowsTrade(EMarketMode::RESOURCE_RESOURCE))
+					if(obj->ID == Obj::TOWN && obj->tempOwner == ai->playerID && m->allowsTrade(EMarketMode::RESOURCE_RESOURCE))
 						markets.push_back(m);
 					else if(obj->ID == Obj::TRADING_POST) //TODO a moze po prostu test na pozwalanie handlu?
 						markets.push_back(m);
@@ -3063,7 +3056,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 
 			markets.erase(boost::remove_if(markets, [](const IMarket *market) -> bool
 			{
-				return !(market->o->ID == GameConstants::TOWNI_TYPE && market->o->tempOwner == ai->playerID)
+				return !(market->o->ID == Obj::TOWN && market->o->tempOwner == ai->playerID)
 					&& !ai->isAccessible(market->o->visitablePos());
 			}),markets.end());
 
@@ -3187,7 +3180,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 			ai->retreiveVisitableObjs(objs);
 			erase_if(objs, [&](const CGObjectInstance *obj)
 			{
-				return (obj->ID != GameConstants::TOWNI_TYPE && obj->ID != GameConstants::HEROI_TYPE) //not town/hero
+				return (obj->ID != Obj::TOWN && obj->ID != Obj::HERO) //not town/hero
 					|| cb->getPlayerRelations(ai->playerID, obj->tempOwner) != 0; //not enemy
 			});
 
@@ -3207,7 +3200,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 			{
 				if(ai->isAccessibleForHero(obj->visitablePos(), h))
 				{
-					if (obj->ID == GameConstants::HEROI_TYPE)
+					if (obj->ID == Obj::HERO)
 						return CGoal(VISIT_HERO).sethero(h).setobjid(obj->id).setisAbstract(true); //track enemy hero
 					else
 						return CGoal(VISIT_TILE).sethero(h).settile(obj->visitablePos());
@@ -3646,7 +3639,7 @@ int3 SectorMap::firstTileToGet(HeroPtr h, crint3 dst)
 					ai->retreiveVisitableObjs(visObjs, true);
 					BOOST_FOREACH(const CGObjectInstance *obj, visObjs)
 					{
-						if(obj->ID != GameConstants::TOWNI_TYPE) //towns were handled in the previous loop
+						if(obj->ID != Obj::TOWN) //towns were handled in the previous loop
 							if(const IShipyard *shipyard = IShipyard::castFrom(obj))
 								shipyards.push_back(shipyard);
 					}
@@ -3866,9 +3859,3 @@ const CGHeroInstance * HeroPtr::operator*() const
 	return get();
 }
 
-
-
-CGlobalAI* GetNewAI()
-{
-	return new VCAI();
-}
