@@ -57,9 +57,6 @@
 using namespace boost::assign;
 using namespace CSDL_Ext;
 
-extern std::queue<SDL_Event> events;
-extern boost::mutex eventsM;
-
 std::list<CFocusable*> CFocusable::focusables;
 CFocusable * CFocusable::inputWithFocus;
 

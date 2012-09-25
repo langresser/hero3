@@ -132,37 +132,13 @@ void CClient::waitForMoveAndSend(int color)
 	tlog1 << "We should not be here!" << std::endl;
 }
 
-void CClient::run()
+void CClient::processNetMsg()
 {
-	setThreadName("CClient::run");
-	try
+	CPack *pack = NULL;
+	while (pack = serv->retreivePack())
 	{
-		CPack *pack = NULL;
-		while(!terminate)
-		{
-			pack = serv->retreivePack(); //get the package from the server
-			
-			if (terminate) 
-			{
-				delete pack;
-				pack = NULL;
-				break;
-			}
-
-			handlePack(pack);
-			pack = NULL;
-		}
-	} 
-	//catch only asio exceptions
-	catch (const boost::system::system_error& e)
-	{	
-		tlog3 << "Lost connection to server, ending listening thread!\n";
-		tlog1 << e.what() << std::endl;
-		if(!terminate) //rethrow (-> boom!) only if closing connection was unexpected
-		{
-			tlog1 << "Something wrong, lost connection while game is still ongoing...\n";
-			throw;
-		}
+		handlePack(pack);
+		pack = NULL;
 	}
 }
 

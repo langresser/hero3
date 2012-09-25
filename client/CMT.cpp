@@ -69,11 +69,6 @@ static CClient *client=NULL;
 SDL_Surface *screen = NULL, //main screen surface
 	*screen2 = NULL,//and hlp surface (used to store not-active interfaces layer)
 	*screenBuf = screen; //points to screen (if only advmapint is present) or screen2 (else) - should be used when updating controls which are not regularly redrawed
-static boost::thread *mainGUIThread;
-
-std::queue<SDL_Event> events;
-boost::mutex eventsM;
-
 static bool gOnlyAI = false;
 //static bool setResolution = false; //set by event handling thread after resolution is adjusted
 
@@ -270,26 +265,17 @@ int main(int argc, char** argv)
 	tlog0 <<"\tInitializing screen: "<<pomtime.getDiff() << std::endl;
 
 	// Initialize video
-#if DISABLE_VIDEO
 	CCS->videoh = new CEmptyVideoPlayer;
-#else
-	if (!vm.count("disable-video"))
-		CCS->videoh = new CVideoPlayer;
-	else
-		CCS->videoh = new CEmptyVideoPlayer;
-#endif
 
 	tlog0<<"\tInitializing video: "<<pomtime.getDiff()<<std::endl;
 
-	//we can properly play intro only in the main thread, so we have to move loading to the separate thread
-	boost::thread loading(init);
+	init();
 
 	if(!vm.count("battle") && !vm.count("nointro"))
 		playIntro();
 
 	SDL_FillRect(screen,NULL,0);
 	CSDL_Ext::update(screen);
-	loading.join();
 	tlog0<<"Initialization of VCMI (together): "<<total.getDiff()<<std::endl;
 
 	if(!vm.count("battle"))
@@ -325,7 +311,22 @@ int main(int argc, char** argv)
 		startGame(si);
 	}
 
-	GH.run();
+	if (settings["video"]["fullscreen"].Bool())
+		CCS->curh->centerCursor();
+
+	GH.mainFPSmng->init(); // resets internal clock, needed for FPS manager
+	while(!GH.terminate)
+	{
+		if (client) {
+			client->processNetMsg();
+		}
+
+		if(GH.curInt)
+			GH.curInt->update(); // calls a update and drawing process of the loaded game interface object at the moment
+
+		GH.mainFPSmng->framerateDelay(); // holds a constant FPS
+	}
+
 	return 0;
 }
 
@@ -724,13 +725,6 @@ void listenForEvents(const SDL_Event& ev)
 		{
 			if (client)
 				client->endGame();
-			if (mainGUIThread) 
-			{
-				GH.terminate = true;
-				mainGUIThread->join();
-				delete mainGUIThread;
-				mainGUIThread = NULL;
-			}
 			delete console;
 			console = NULL;
 			SDL_Delay(750);
@@ -852,8 +846,6 @@ void startGame(StartInfo * options, CConnection *serv/* = NULL*/)
 		client->loadGame(fname);
 		break;
 	}
-
-		client->connectionHandler = new boost::thread(&CClient::run, client);
 }
 /*
 void requestChangingResolution()

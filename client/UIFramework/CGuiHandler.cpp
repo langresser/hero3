@@ -9,10 +9,6 @@
 #include "../CConfigHandler.h"
 
 extern SDL_Surface * screenBuf, * screen2, * screen;
-extern std::queue<SDL_Event> events;
-extern boost::mutex eventsM;
-
-boost::thread_specific_ptr<bool> inGuiThread;
 
 SObjectConstruction::SObjectConstruction( CIntObject *obj )
 :myObj(obj)
@@ -324,26 +320,6 @@ void CGuiHandler::fakeMouseMove()
 	handleMouseMotion(&evnt);
 }
 
-void CGuiHandler::run()
-{
-	setThreadName("CGuiHandler::run");
-	inGuiThread.reset(new bool(true));
-	try
-	{
-		if (settings["video"]["fullscreen"].Bool())
-			CCS->curh->centerCursor();
-
-		mainFPSmng->init(); // resets internal clock, needed for FPS manager
-		while(!terminate)
-		{
-			if(curInt)
-				curInt->update(); // calls a update and drawing process of the loaded game interface object at the moment
-
-			mainFPSmng->framerateDelay(); // holds a constant FPS
-		}
-	} HANDLE_EXCEPTION
-}
-
 CGuiHandler::CGuiHandler()
 :lastClick(-500, -500)
 {
@@ -432,11 +408,6 @@ bool CGuiHandler::isNumKey( SDL_Keycode key, bool number )
 bool CGuiHandler::isArrowKey( SDLKey key )
 {
 	return key >= SDLK_UP && key <= SDLK_LEFT;
-}
-
-bool CGuiHandler::amIGuiThread()
-{
-	return inGuiThread.get() && *inGuiThread;
 }
 
 void CGuiHandler::pushSDLEvent(int type, int usercode)

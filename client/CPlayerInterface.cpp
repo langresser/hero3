@@ -71,8 +71,6 @@ using namespace CSDL_Ext;
 
 void processCommand(const std::string &message, CClient *&client);
 
-extern std::queue<SDL_Event> events;
-extern boost::mutex eventsM;
 boost::recursive_mutex * CPlayerInterface::pim = new boost::recursive_mutex;
 
 CPlayerInterface * LOCPLINT;
@@ -148,8 +146,6 @@ void CPlayerInterface::yourTurn()
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	{
-		boost::unique_lock<boost::mutex> lock(eventsM); //block handling events until interface is ready
-
 		LOCPLINT = this;
 		GH.curInt = this;
 		adventureInt->selection = NULL;
@@ -331,11 +327,9 @@ void CPlayerInterface::heroMoved(const TryMoveHero & details)
 
 	//check if user cancelled movement
 	{
-		boost::unique_lock<boost::mutex> un(eventsM);
-		while(events.size())
+		SDL_Event ev;
+		while(SDL_PollEvent(&ev))
 		{
-			SDL_Event ev = events.front();
-			events.pop();
 			switch(ev.type)
 			{
 			case SDL_MOUSEBUTTONDOWN:
@@ -1203,7 +1197,6 @@ bool CPlayerInterface::moveHero( const CGHeroInstance *h, CGPath path )
 		//evil...
 
 		tlog5 << "before [un]locks in " << __FUNCTION__ << std::endl;
-		auto unlockEvents = vstd::makeUnlockGuard(eventsM);
 		auto unlockGs = vstd::makeUnlockSharedGuard(cb->getGsMutex()); //GS mutex is above PIM because CClient::run thread first locks PIM and then GS -> so this way we avoid deadlocks
 		auto unlockPim = vstd::makeUnlockGuard(*pim);
 		tlog5 << "after [un]locks in " << __FUNCTION__ << std::endl;
@@ -1439,12 +1432,6 @@ void CPlayerInterface::showRecruitmentDialog(const CGDwelling *dwelling, const C
 
 void CPlayerInterface::waitWhileDialog(bool unlockPim /*= true*/)
 {
-	if(GH.amIGuiThread())
-	{
-		tlog3 << "Cannot wait for dialogs in gui thread (deadlock risk)!\n";
-		return;
-	}
-
 	auto unlock = vstd::makeUnlockGuardIf(*pim, unlockPim);
 	boost::unique_lock<boost::mutex> un(showingDialog->mx);
 	while(showingDialog->data)
