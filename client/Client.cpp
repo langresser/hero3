@@ -82,6 +82,7 @@ static CApplier<CBaseForCLApply> *applier = NULL;
 
 void CClient::init()
 {
+	m_singlePlayer = true;
 	hotSeat = false;
 	connectionHandler = NULL;
 	pathInfo = NULL;
@@ -639,16 +640,28 @@ void CClient::invalidatePaths(const CGHeroInstance *h /*= NULL*/)
 
 int CClient::sendRequest(const CPack *request, int player)
 {
+	
 	static ui32 requestCounter = 0;
 
 	ui32 requestID = requestCounter++;
-	tlog5 << boost::format("Sending a request \"%s\". It'll have an ID=%d.\n") 
-				% typeid(*request).name() % requestID;
 
-	waitingRequest.pushBack(requestID);
-	serv->sendPackToServer(*request, player, requestID);
-	if(vstd::contains(playerint, player))
-		playerint[player]->requestSent(dynamic_cast<const CPackForServer*>(request), requestID);
+	if (m_singlePlayer) {
+		tlog5 << boost::format("Sending a request \"%s\". It'll have an ID=%d.\n") 
+			% typeid(*request).name() % requestID;
+
+		waitingRequest.pushBack(requestID);
+		serv->sendPackToServer(*request, player, requestID);
+		if(vstd::contains(playerint, player))
+			playerint[player]->requestSent(dynamic_cast<const CPackForServer*>(request), requestID);
+	} else {
+		tlog5 << boost::format("Sending a request \"%s\". It'll have an ID=%d.\n") 
+			% typeid(*request).name() % requestID;
+
+		waitingRequest.pushBack(requestID);
+		serv->sendPackToServer(*request, player, requestID);
+		if(vstd::contains(playerint, player))
+			playerint[player]->requestSent(dynamic_cast<const CPackForServer*>(request), requestID);
+	}
 
 	return requestID;
 }

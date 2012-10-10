@@ -122,6 +122,7 @@ public:
 	bool hotSeat;
 	CConnection *serv;
 	BattleAction *curbaction;
+	bool m_singlePlayer;
 
 	CPathsInfo *pathInfo;
 	boost::mutex pathMx; //protects the variable above
