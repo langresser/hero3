@@ -138,7 +138,6 @@ Graphics::Graphics()
 	tasks += boost::bind(&Graphics::loadHeroFlags,this);
 	tasks += boost::bind(&Graphics::loadHeroPortraits,this);
 	tasks += boost::bind(&Graphics::initializeBattleGraphics,this);
-	tasks += boost::bind(&Graphics::loadWallPositions,this);
 	tasks += boost::bind(&Graphics::loadErmuToPicture,this);
 	tasks += GET_DEF_ESS(artDefs,"ARTIFACT.DEF");
 	tasks += GET_DEF_ESS(un44,"UN44.DEF");
@@ -202,22 +201,6 @@ void Graphics::loadHeroPortraits()
 	}
 }
 
-void Graphics::loadWallPositions()
-{
-	const JsonNode config(ResourceID("config/wall_pos.json"));
-
-	BOOST_FOREACH(const JsonNode &town, config["towns"].Vector()) {
-		int townID = town["id"].Float();
-
-		BOOST_FOREACH(const JsonNode &coords, town["pos"].Vector()) {
-			Point pt(coords["x"].Float(), coords["y"].Float());
-			wallPositions[townID].push_back(pt);
-		}
-
-		assert(wallPositions[townID].size() == 21);
-	}
-}
-
 void Graphics::loadHeroAnims()
 {
 	std::vector<std::pair<int,int> > rotations; //first - group number to be rotated1, second - group number after rotation1
@@ -228,8 +211,7 @@ void Graphics::loadHeroAnims()
 		std::ostringstream nm;
 		nm << "AH" << std::setw(2) << std::setfill('0') << i << "_.DEF";
 		loadHeroAnim(nm.str(), rotations, &Graphics::heroAnims);
-		std::string name = nm.str();
-	}	
+	}
 
 	loadHeroAnim("AB01_.DEF", rotations, &Graphics::boatAnims);
 	loadHeroAnim("AB02_.DEF", rotations, &Graphics::boatAnims);

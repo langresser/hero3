@@ -711,7 +711,7 @@ void CCastleBuildings::enterBlacksmith(int ArtifactID)
 		return;
 	}
 	int price = CGI->arth->artifacts[ArtifactID]->price;
-	bool possible = LOCPLINT->cb->getResourceAmount(Res::GOLD) >= price && !hero->hasArt(ArtifactID+9);
+	bool possible = LOCPLINT->cb->getResourceAmount(Res::GOLD) >= price && !hero->hasArt(ArtifactID);
 	GH.pushInt(new CBlacksmithDialog(possible,CArtHandler::convertMachineID(ArtifactID,false),ArtifactID,hero->id));
 }
 
@@ -1141,6 +1141,35 @@ void CCastleInterface::keyPressed( const SDL_KeyboardEvent & key )
 
 	switch(key.keysym.sym)
 	{
+#if 0 // code that can be used to fix blit order in towns using +/- keys. Quite ugly but works
+	case SDLK_KP_PLUS :
+		if (builds->selectedBuilding)
+		{
+			OBJ_CONSTRUCTION_CAPTURING_ALL;
+			CStructure * str = const_cast<CStructure *>(builds->selectedBuilding->str);
+			str->pos.z++;
+			delete builds;
+			builds = new CCastleBuildings(town);
+
+			BOOST_FOREACH(const CStructure * str, town->town->clientInfo.structures)
+				tlog1 << int(str->building->bid) << " -> " << int(str->pos.z) << "\n";
+		}
+		break;
+	case SDLK_KP_MINUS:
+		if (builds->selectedBuilding)
+		{
+			OBJ_CONSTRUCTION_CAPTURING_ALL;
+			CStructure * str = const_cast<CStructure *>(builds->selectedBuilding->str);
+			str->pos.z--;
+			delete builds;
+			builds = new CCastleBuildings(town);
+
+			BOOST_FOREACH(const CStructure * str, town->town->clientInfo.structures)
+				tlog1 << int(str->building->bid) << " -> " << int(str->pos.z) << "\n";
+
+		}
+		break;
+#endif
 	case SDLK_UP:
 		townlist->selectPrev();
 		break;
@@ -1394,6 +1423,7 @@ CFortScreen::CFortScreen(const CGTownInstance * town):
 	
 	std::string text = boost::str(boost::format(CGI->generaltexth->fcommands[6]) % fortBuilding->Name());
 	exit = new CAdventureMapButton(text, "", boost::bind(&CFortScreen::close,this) ,748, 556, "TPMAGE1", SDLK_RETURN);
+	exit->assignedKeys.insert(SDLK_ESCAPE);
 
 	std::vector<Point> positions;
 	positions += Point(10,  22), Point(404, 22),

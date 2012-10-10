@@ -37,7 +37,7 @@
 #include "../lib/NetPacks.h"
 #include "../lib/RegisterTypes.h"
 #include "../lib/CThreadHelper.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "../lib/GameConstants.h"
 #include "UIFramework/CGuiHandler.h"
 #include "UIFramework/CIntObjectClasses.h"
@@ -122,7 +122,7 @@ static void swapPlayers(PlayerSettings &a, PlayerSettings &b)
 		playerColor = b.color;
 }
 
-void setPlayer(PlayerSettings &pset, unsigned player, const std::map<ui32, std::string> &playerNames)
+void setPlayer(PlayerSettings &pset, TPlayerColor player, const std::map<TPlayerColor, std::string> &playerNames)
 {
 	if(vstd::contains(playerNames, player))
 		pset.name = playerNames.find(player)->second;
@@ -134,7 +134,7 @@ void setPlayer(PlayerSettings &pset, unsigned player, const std::map<ui32, std::
 		playerColor = pset.color;
 }
 
-void updateStartInfo(std::string filename, StartInfo & sInfo, const CMapHeader * mapHeader, const std::map<ui32, std::string> &playerNames)
+void updateStartInfo(std::string filename, StartInfo & sInfo, const CMapHeader * mapHeader, const std::map<TPlayerColor, std::string> &playerNames)
 {
 	sInfo.playerInfos.clear();
 	if(!filename.size())
@@ -144,19 +144,19 @@ void updateStartInfo(std::string filename, StartInfo & sInfo, const CMapHeader *
 	sInfo.mapname = filename;
 	playerColor = -1;
 
-	std::map<ui32, std::string>::const_iterator namesIt = playerNames.begin();
+	auto namesIt = playerNames.cbegin();
 
 	for (int i = 0; i < GameConstants::PLAYER_LIMIT; i++)
 	{
 		const PlayerInfo &pinfo = mapHeader->players[i];
 
 		//neither computer nor human can play - no player
-		if (!(pinfo.canComputerPlay || pinfo.canComputerPlay))
+		if (!(pinfo.canHumanPlay || pinfo.canComputerPlay))
 			continue;
 
 		PlayerSettings &pset = sInfo.playerInfos[i];
 		pset.color = i;
-		if(pinfo.canHumanPlay && namesIt != playerNames.end())
+		if(pinfo.canHumanPlay && namesIt != playerNames.cend())
 			setPlayer(pset, namesIt++->first, playerNames);
 		else
 			setPlayer(pset, 0, playerNames);
@@ -537,7 +537,7 @@ void CGPreGame::removeFromGui()
 	GH.popInt(GH.topInt()); //remove background
 }
 
-CSelectionScreen::CSelectionScreen(CMenuScreen::EState Type, CMenuScreen::EMultiMode MultiPlayer /*= CMenuScreen::SINGLE_PLAYER*/, const std::map<ui32, std::string> *Names /*= NULL*/)
+CSelectionScreen::CSelectionScreen(CMenuScreen::EState Type, CMenuScreen::EMultiMode MultiPlayer /*= CMenuScreen::SINGLE_PLAYER*/, const std::map<TPlayerColor, std::string> *Names /*= NULL*/)
 	: ISelectionScreenInfo(Names), serverHandlingThread(NULL), mx(new boost::recursive_mutex),
 	  serv(NULL), ongoingClosing(false), myNameID(255)
 {
@@ -802,12 +802,12 @@ void CSelectionScreen::startGame()
 	if(screenType == CMenuScreen::newGame)
 	{
 		//there must be at least one human player before game can be started
-		std::map<int, PlayerSettings>::const_iterator i;
-		for(i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
+		std::map<TPlayerColor, PlayerSettings>::const_iterator i;
+		for(i = SEL->sInfo.playerInfos.cbegin(); i != SEL->sInfo.playerInfos.cend(); i++)
 			if(i->second.human)
 				break;
 
-		if(i == SEL->sInfo.playerInfos.end())
+		if(i == SEL->sInfo.playerInfos.cend())
 		{
 			GH.pushInt(CInfoWindow::create(CGI->generaltexth->allTexts[530])); //You must position yourself prior to starting the game.
 			return;
@@ -900,8 +900,8 @@ void CSelectionScreen::handleConnection()
 
 void CSelectionScreen::setSInfo(const StartInfo &si)
 {
-	std::map<int, PlayerSettings>::const_iterator i;
-	for(i = si.playerInfos.begin(); i != si.playerInfos.end(); i++)
+	std::map<TPlayerColor, PlayerSettings>::const_iterator i;
+	for(i = si.playerInfos.cbegin(); i != si.playerInfos.cend(); i++)
 	{
 		if(i->second.human == myNameID)
 		{
@@ -910,7 +910,7 @@ void CSelectionScreen::setSInfo(const StartInfo &si)
 		}
 	}
 
-	if(i == si.playerInfos.end()) //not found
+	if(i == si.playerInfos.cend()) //not found
 		playerColor = -1;
 
 	sInfo = si;
@@ -1048,8 +1048,8 @@ void SelectionTab::parseMaps(const std::vector<ResourceID> &files, int start, in
 	{
 		try
 		{
-			CCompressedStream stream(std::move(CResourceHandler::get()->load(files[start])), true);
-			int read = stream.read(mapBuffer, 1500);
+			TInputStreamPtr stream(Mapa::getMapStream(files[start].getName()));
+			int read = stream->read(mapBuffer, 1500);
 
 			if(read < 50  ||  !mapBuffer[4])
 				throw std::runtime_error("corrupted map file");
@@ -1653,9 +1653,9 @@ void InfoCard::showAll(SDL_Surface * to)
 		}
 		else //players list
 		{
-			std::map<ui32, std::string> playerNames = SEL->playerNames;
+			std::map<TPlayerColor, std::string> playerNames = SEL->playerNames;
 			int playerSoFar = 0;
-			for (std::map<int, PlayerSettings>::const_iterator i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
+			for (auto i = SEL->sInfo.playerInfos.cbegin(); i != SEL->sInfo.playerInfos.cend(); i++)
 			{
 				if(i->second.human)
 				{
@@ -1665,7 +1665,7 @@ void InfoCard::showAll(SDL_Surface * to)
 			}
 
 			playerSoFar = 0;
-			for (std::map<ui32, std::string>::const_iterator i = playerNames.begin(); i != playerNames.end(); i++)
+			for (auto i = playerNames.cbegin(); i != playerNames.cend(); i++)
 			{
 				printAtLoc(i->second, 193, 285 + playerSoFar++ * graphics->fonts[FONT_SMALL]->height, FONT_SMALL, Colors::Cornsilk, to);
 			}
@@ -1744,7 +1744,7 @@ void InfoCard::showAll(SDL_Surface * to)
 			else
 				myT = -1;
 
-			for (std::map<int, PlayerSettings>::const_iterator i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
+			for (auto i = SEL->sInfo.playerInfos.cbegin(); i != SEL->sInfo.playerInfos.cend(); i++)
 			{
 				int *myx = ((i->first == playerColor  ||  SEL->current->mapHeader->players[i->first].team == myT) ? &fx : &ex);
 				blitAtLoc(sFlags->ourImages[i->first].bitmap, *myx, 399, to);
@@ -2012,7 +2012,9 @@ bool OptionsTab::canUseThisHero( int ID )
 	//	if(CPG->ret.playerInfos[i].hero==ID) //hero is already taken
 	//		return false;
 
-	return !vstd::contains(usedHeroes, ID) && SEL->current->mapHeader->allowedHeroes[ID];
+	return CGI->heroh->heroes.size() > ID
+	    && !vstd::contains(usedHeroes, ID)
+	    && SEL->current->mapHeader->allowedHeroes[ID];
 }
 
 void OptionsTab::nextBonus( int player, int dir )
@@ -2059,8 +2061,7 @@ void OptionsTab::recreate()
 	usedHeroes.clear();
 
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
-	for(std::map<int, PlayerSettings>::iterator it = SEL->sInfo.playerInfos.begin();
-		it != SEL->sInfo.playerInfos.end(); ++it)
+	for(auto it = SEL->sInfo.playerInfos.begin(); it != SEL->sInfo.playerInfos.end(); ++it)
 	{
 		entries.insert(std::make_pair(it->first, new PlayerOptionsEntry(this, it->second)));
 		const std::vector<SheroName> &heroes = SEL->current->mapHeader->players[it->first].heroesNames;
@@ -2115,7 +2116,7 @@ void OptionsTab::flagPressed( int color )
 		}
 		else //human clicked -> take next
 		{
-			std::map<ui32, std::string>::const_iterator i = SEL->playerNames.find(clickedNameID); //clicked one
+			auto i = SEL->playerNames.find(clickedNameID); //clicked one
 			i++; //player AFTER clicked one
 
 			if(i != SEL->playerNames.end())
@@ -2129,7 +2130,7 @@ void OptionsTab::flagPressed( int color )
 		//if that player was somewhere else, we need to replace him with computer
 		if(newPlayer) //not AI
 		{
-			for(std::map<int, PlayerSettings>::iterator i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
+			for(auto i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
 			{
 				int curNameID = i->second.human;
 				if(i->first != color  &&  curNameID == newPlayer)
@@ -2294,18 +2295,53 @@ OptionsTab::SelectedBox::SelectedBox( SelType Which, ui8 Player )
 	addUsedEvents(RCLICK);
 }
 
+size_t OptionsTab::SelectedBox::getBonusImageIndex() const
+{
+	enum EBonusSelection //frames of bonuses file
+	{
+		WOOD_ORE = 0,   CRYSTAL = 1,    GEM  = 2,
+		MERCURY  = 3,   SULFUR  = 5,    GOLD = 8,
+		ARTIFACT = 9,   RANDOM  = 10,
+		WOOD = 0,       ORE     = 0,    MITHRIL = 10 // resources unavailable in bonuses file
+	};
+
+	const PlayerSettings &s = SEL->sInfo.playerInfos[player];
+	switch(s.bonus)
+	{
+	case -1: return RANDOM;
+	case 0:  return ARTIFACT;
+	case 1:  return GOLD;
+	case 2:
+		switch (CGI->townh->towns[s.castle].primaryRes)
+		{
+		case 127          : return WOOD_ORE;
+		case Res::WOOD    : return WOOD;
+		case Res::MERCURY : return MERCURY;
+		case Res::ORE     : return ORE;
+		case Res::SULFUR  : return SULFUR;
+		case Res::CRYSTAL : return CRYSTAL;
+		case Res::GEMS    : return GEM;
+		case Res::GOLD    : return GOLD;
+		case Res::MITHRIL : return MITHRIL;
+		}
+	default:
+		assert(0);
+		return 0;
+	}
+}
+
 SDL_Surface * OptionsTab::SelectedBox::getImg() const
 {
 	const PlayerSettings &s = SEL->sInfo.playerInfos[player];
 	switch(which)
 	{
 	case TOWN:
-		if (s.castle < GameConstants::F_NUMBER  &&  s.castle >= 0)
-			return graphics->getPic(s.castle, true, false);
-		else if (s.castle == -1)
+		if (s.castle == -1)
 			return CGP->rTown;
-		else if (s.castle == -2)
+		if (s.castle == -2)
 			return CGP->nTown;
+		else
+			return graphics->getPic(s.castle, true, false);
 	case HERO:
 		if (s.hero == -1)
 		{
@@ -2324,29 +2360,9 @@ SDL_Surface * OptionsTab::SelectedBox::getImg() const
 		}
 		break;
 	case BONUS:
-		{
-			int pom;
-			switch (s.bonus)
-			{
-			case -1:
-				pom=10;
-				break;
-			case 0:
-				pom=9;
-				break;
-			case 1:
-				pom=8;
-				break;
-			case 2:
-				pom=CGI->townh->towns[s.castle].bonus;
-				break;
-			default:
-				assert(0);
-			}
-			return CGP->bonuses->ourImages[pom].bitmap;
-		}
+			return CGP->bonuses->ourImages[getBonusImageIndex()].bitmap;
 	default:
-		return NULL;
+		return nullptr;
 	}
 }
 
@@ -2356,12 +2372,12 @@ const std::string * OptionsTab::SelectedBox::getText() const
 	switch(which)
 	{
 	case TOWN:
-		if (s.castle < GameConstants::F_NUMBER  &&  s.castle >= 0)
-			return &CGI->townh->towns[s.castle].Name();
-		else if (s.castle == -1)
+		if (s.castle == -1)
 			return &CGI->generaltexth->allTexts[522];
 		else if (s.castle == -2)
 			return &CGI->generaltexth->allTexts[523];
+		else
+			return &CGI->townh->factions[s.castle].name;
 	case HERO:
 		if (s.hero == -1)
 			return &CGI->generaltexth->allTexts[522];
@@ -2560,8 +2576,7 @@ CScenarioInfo::CScenarioInfo(const CMapHeader *mapHeader, const StartInfo *start
 {
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
 
-	for(std::map<int, PlayerSettings>::const_iterator it = startInfo->playerInfos.begin();
-		it != startInfo->playerInfos.end(); ++it)
+	for(auto it = startInfo->playerInfos.cbegin(); it != startInfo->playerInfos.cend(); ++it)
 	{
 		if(it->second.human)
 		{
@@ -2729,7 +2744,7 @@ void CHotSeatPlayers::onChange(std::string newText)
 
 void CHotSeatPlayers::enterSelectionScreen()
 {
-	std::map<ui32, std::string> names;
+	std::map<TPlayerColor, std::string> names;
 	for(int i = 0, j = 1; i < ARRAY_COUNT(txt); i++)
 		if(txt[i]->text.length())
 			names[j++] = txt[i]->text;
@@ -2767,7 +2782,6 @@ void CBonusSelection::init()
 
 	startB = new CAdventureMapButton("", "", bind(&CBonusSelection::startMap, this), 475, 536, "CBBEGIB.DEF", SDLK_RETURN);
 	backB = new CAdventureMapButton("", "", bind(&CBonusSelection::goBack, this), 624, 536, "CBCANCB.DEF", SDLK_ESCAPE);
-	startB->setState(CButtonBase::BLOCKED);
 
 	//campaign name
 	if (ourCampaign->camp->header.name.length())
@@ -2811,6 +2825,9 @@ void CBonusSelection::init()
 			regions[regions.size()-1]->rclickText = ourCampaign->camp->scenarios[g].regionText;
 		}
 	}
+
+	//unlock if no bonuses -- it's acceptable
+	
 
 // 	//init campaign state if necessary
 // 	if (ourCampaign->campaignName.size() == 0)
@@ -2937,7 +2954,7 @@ void CBonusSelection::selectMap( int whichOne )
 	ourHeader = new CMapHeader();
 	ourHeader->initFromMemory((const unsigned char*)ourCampaign->camp->mapPieces.find(whichOne)->second.data(), i);
 
-	std::map<ui32, std::string> names;
+	std::map<TPlayerColor, std::string> names;
 	names[1] = settings["general"]["playerName"].String();
 	updateStartInfo(ourCampaign->camp->header.filename, sInfo, ourHeader, names);
 	sInfo.turnTime = 0;
@@ -2992,7 +3009,7 @@ void CBonusSelection::show(SDL_Surface * to)
 	int ex = 629 + graphics->fonts[FONT_SMALL]->getWidth(CGI->generaltexth->allTexts[391].c_str());
 	int myT;
 	myT = ourHeader->players[playerColor].team;
-	for (std::map<int, PlayerSettings>::const_iterator i = sInfo.playerInfos.begin(); i != sInfo.playerInfos.end(); i++)
+	for (auto i = sInfo.playerInfos.cbegin(); i != sInfo.playerInfos.cend(); i++)
 	{
 		int *myx = ((i->first == playerColor  ||  ourHeader->players[i->first].team == myT) ? &fx : &ex);
 		blitAtLoc(sFlags->ourImages[i->first].bitmap, pos.x + *myx, pos.y + 405, to);
@@ -3021,6 +3038,8 @@ void CBonusSelection::updateBonusSelection()
 	//hero - PORTRAITSLARGE (HPL###.BMPs)
 	const CCampaignScenario &scenario = ourCampaign->camp->scenarios[sInfo.campState->currentMap];
 	const std::vector<CScenarioTravel::STravelBonus> & bonDescs = scenario.travelOptions.bonusesToChoose;
+
+	updateStartButtonState(-1);
 
 	for (size_t i=0; i<bonuses->buttons.size(); i++)
 	{
@@ -3054,8 +3073,7 @@ void CBonusSelection::updateBonusSelection()
 			case CScenarioTravel::STravelBonus::BUILDING:
 				{
 					int faction = -1;
-					for(std::map<int, PlayerSettings>::iterator it = sInfo.playerInfos.begin();
-						it != sInfo.playerInfos.end(); ++it)
+					for(auto it = sInfo.playerInfos.begin(); it != sInfo.playerInfos.end(); ++it)
 					{
 						if (it->second.human)
 						{
@@ -3216,8 +3234,7 @@ void CBonusSelection::selectBonus( int id )
 		sInfo.campState->chosenCampaignBonuses[sInfo.campState->currentMap] = id;
 		GH.totalRedraw();
 
-		if (startB->getState() == CButtonBase::BLOCKED)
-			startB->setState(CButtonBase::NORMAL);
+		updateStartButtonState(id);
 	}
 
 
@@ -3225,7 +3242,7 @@ void CBonusSelection::selectBonus( int id )
 	const std::vector<CScenarioTravel::STravelBonus> & bonDescs = scenario.travelOptions.bonusesToChoose;
 	if (bonDescs[id].type == CScenarioTravel::STravelBonus::HERO)
 	{
-		std::map<ui32, std::string> names;
+		std::map<TPlayerColor, std::string> names;
 		names[1] = settings["general"]["playerName"].String();
 		for(auto it = sInfo.playerInfos.begin(); it != sInfo.playerInfos.end(); ++it)
 		{
@@ -3247,6 +3264,14 @@ void CBonusSelection::changeDiff( bool increase )
 	{
 		sInfo.difficulty = std::max(sInfo.difficulty - 1, 0);
 	}
+}
+
+void CBonusSelection::updateStartButtonState( int selected /*= -1*/ )
+{
+	if(selected == -1)
+		startB->setState( ourCampaign->getCurrentScenario().travelOptions.bonusesToChoose.size() ? CButtonBase::BLOCKED : CButtonBase::NORMAL);
+	else if(startB->getState() == CButtonBase::BLOCKED)
+		startB->setState(CButtonBase::NORMAL);
 }
 
 CBonusSelection::CRegion::CRegion( CBonusSelection * _owner, bool _accessible, bool _selectable, int _myNumber )
@@ -3345,7 +3370,7 @@ CSavingScreen::~CSavingScreen()
 
 }
 
-ISelectionScreenInfo::ISelectionScreenInfo(const std::map<ui32, std::string> *Names /*= NULL*/)
+ISelectionScreenInfo::ISelectionScreenInfo(const std::map<TPlayerColor, std::string> *Names /*= NULL*/)
 {
 	multiPlayer = CMenuScreen::SINGLE_PLAYER;
 	assert(!SEL);
@@ -3369,14 +3394,14 @@ void ISelectionScreenInfo::updateStartInfo(std::string filename, StartInfo & sIn
 	::updateStartInfo(filename, sInfo, mapHeader, playerNames);
 }
 
-void ISelectionScreenInfo::setPlayer(PlayerSettings &pset, unsigned player)
+void ISelectionScreenInfo::setPlayer(PlayerSettings &pset, TPlayerColor player)
 {
 	::setPlayer(pset, player, playerNames);
 }
 
 int ISelectionScreenInfo::getIdOfFirstUnallocatedPlayer()
 {
-	for(std::map<ui32, std::string>::const_iterator i = playerNames.begin(); i != playerNames.end(); i++)
+	for(auto i = playerNames.cbegin(); i != playerNames.cend(); i++)
 		if(!sInfo.getPlayersSettings(i->first))  //
 			return i->first;
 
@@ -3416,7 +3441,7 @@ void PlayerJoined::apply(CSelectionScreen *selScreen)
 	SEL->playerNames[connectionID] = playerName;
 
 	//put new player in first slot with AI
-	for(std::map<int, PlayerSettings>::iterator i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
+	for(auto i = SEL->sInfo.playerInfos.begin(); i != SEL->sInfo.playerInfos.end(); i++)
 	{
 		if(!i->second.human)
 		{
@@ -3655,3 +3680,4 @@ void CCampaignScreen::showAll(SDL_Surface *to)
 	if (pos.h != to->h || pos.w != to->w)
 		CMessage::drawBorder(1, to, pos.w+28, pos.h+30, pos.x-14, pos.y-15);
 }
+

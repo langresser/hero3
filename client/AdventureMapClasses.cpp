@@ -788,18 +788,18 @@ void CInfoBar::CVisibleInfo::loadGameStatus()
 	}
 }
 
-void CInfoBar::CVisibleInfo::loadComponent(const Component compToDisplay, std::string message)
+void CInfoBar::CVisibleInfo::loadComponent(const Component & compToDisplay, std::string message)
 {
 	assert(children.empty()); // visible info should be re-created to change type
 
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
 
-	new CPicture("ADSTATOT");
+	new CPicture("ADSTATOT", 1);
 
 	auto comp = new CComponent(compToDisplay);
-	comp->moveTo(Point(pos.x+52, pos.y+54));
+	comp->moveTo(Point(pos.x+47, pos.y+50));
 
-	new CTextBox(message, Rect(8, 8, 164, 50), 0, FONT_SMALL, CENTER, Colors::Cornsilk);
+	new CTextBox(message, Rect(10, 4, 160, 50), 0, FONT_SMALL, CENTER, Colors::Cornsilk);
 }
 
 void CInfoBar::CVisibleInfo::updateEnemyTurn(double progress)
@@ -889,7 +889,7 @@ void CInfoBar::showDate()
 	redraw();
 }
 
-void CInfoBar::showComponent(const Component comp, std::string message)
+void CInfoBar::showComponent(const Component & comp, std::string message)
 {
 	reset(COMPONENT);
 	visibleInfo->loadComponent(comp, message);

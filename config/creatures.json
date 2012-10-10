@@ -45,8 +45,7 @@
 				"upgrades": [3],
 				"defname": "CLCBOW.DEF",
 				"projectile_defname": "PLCBOWX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -201,8 +200,7 @@
 				"upgrades": [19],
 				"defname": "CELF.DEF",
 				"projectile_defname": "PELFX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -365,8 +363,7 @@
 				"upgrades": [35],
 				"defname": "CMAGE.DEF",
 				"projectile_defname": "PMAGEX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -471,8 +468,7 @@
 				"upgrades": [45],
 				"defname": "CGOG.DEF",
 				"projectile_defname": "CPRGOGX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -574,7 +570,9 @@
 				"level": 7,
 				"name": [ "Devil" ],
 				"faction": 3,
+				"ability_remove": [ "FLYING" ],  //use teleport instead
 				"ability_add": [ [ "HATE", 50, 13, 0 ],
+								[ "FLYING", 0, 1, 0], //teleport
 							   	 [ "HATE", 50, 12, 0 ],
 								 [ "ENEMY_LUCK_DECREASING", 1, 0, 0 ],	//devils				//devils hate archangles
 								 [ "BLOCKS_RETALIATION", 0, 0, 0 ] ], 	 	//devils			//devils hate angels
@@ -587,8 +585,10 @@
 				"level": 7,
 				"name": [ "ArchDevil" ],
 				"faction": 3,
-				"ability_add": [ [ "HATE", 50, 13, 0 ],				//wraith
+				"ability_remove": [ "FLYING" ],  //use teleport instead
+				"ability_add": [ [ "HATE", 50, 13, 0 ],
 							   	 [ "HATE", 50, 12, 0 ],
+								 [ "FLYING", 0, 1, 0],
 								 [ "ENEMY_LUCK_DECREASING", 1, 0, 0 ], 	//archdevils				//archdevils hate archangles
 								 [ "BLOCKS_RETALIATION", 0, 0, 0 ] ], 	 	//archdevils			//archdevils hate angels
 				"defname": "CADEVL.DEF"
@@ -677,8 +677,7 @@
 				"upgrades": [65],
 				"defname": "CLICH.DEF",
 				"projectile_defname": "PLICH.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -801,8 +800,7 @@
 				"upgrades": [77],
 				"defname": "CMEDUS.DEF",
 				"projectile_defname": "PMEDUSX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -921,8 +919,7 @@
 				"upgrades": [89],
 				"defname": "CORC.DEF",
 				"projectile_defname": "PORCHX.DEF",
-				"projectile_spin": true,
-				"turret_shooter": true
+				"projectile_spin": true
 			},
 
 			{
@@ -1039,8 +1036,7 @@
 				"upgrades": [101],
 				"defname": "CPLIZA.DEF",
 				"projectile_defname": "PPLIZAX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -1318,8 +1314,7 @@
 								[ "SPELLCASTER", 2, 30, 0 ]],
 				"defname": "CSTORM.DEF",
 				"projectile_defname": "CPRGTIX.DEF",
-				"projectile_spin": false,
-				"turret_shooter": true
+				"projectile_spin": false
 			},
 
 			{
@@ -1468,7 +1463,7 @@
 				"level": 3,
 				"name": [ "Mummy" ],
 				"faction": 9,
-				"ability_add": [ [ "UNDEAD", 0, 0, 0 ] ], 
+				"ability_add": [ [ "UNDEAD", 0, 0, 0 ] ],
 				"defname": "CMUMMY.DEF"
 			},
 
@@ -1542,6 +1537,7 @@
 				"name": [ "ArrowTower" ],
 				"faction": 9,
 				"ability_add": [ [ "SHOOTER", 0, 0, 0 ] ],
+				"projectile_defname": "SMBALX.DEF", //workaround for crash
 				"defname": "x"
 			},
 

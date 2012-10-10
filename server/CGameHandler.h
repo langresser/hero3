@@ -53,17 +53,17 @@ struct PlayerStatus
 class PlayerStatuses
 {
 public:
-	std::map<ui8,PlayerStatus> players;
+	std::map<TPlayerColor,PlayerStatus> players;
 	boost::mutex mx;
 	boost::condition_variable cv; //notifies when any changes are made
 
-	void addPlayer(ui8 player);
-	PlayerStatus operator[](ui8 player);
-	int getQueriesCount(ui8 player); //returns 0 if there is no such player
-	bool checkFlag(ui8 player, bool PlayerStatus::*flag);
-	void setFlag(ui8 player, bool PlayerStatus::*flag, bool val);
-	void addQuery(ui8 player, ui32 id);
-	void removeQuery(ui8 player, ui32 id);
+	void addPlayer(TPlayerColor player);
+	PlayerStatus operator[](TPlayerColor player);
+	int getQueriesCount(TPlayerColor player); //returns 0 if there is no such player
+	bool checkFlag(TPlayerColor player, bool PlayerStatus::*flag);
+	void setFlag(TPlayerColor player, bool PlayerStatus::*flag, bool val);
+	void addQuery(TPlayerColor player, ui32 id);
+	void removeQuery(TPlayerColor player, ui32 id);
 	template <typename Handler> void serialize(Handler &h, const int version)
 	{
 		h & players;
@@ -216,7 +216,7 @@ public:
 	bool assembleArtifacts (si32 heroID, ui16 artifactSlot, bool assemble, ui32 assembleTo);
 	bool buyArtifact( ui32 hid, TArtifactID aid ); //for blacksmith and mage guild only -> buying for gold in common buildings
 	bool buyArtifact( const IMarket *m, const CGHeroInstance *h, TArtifactID rid, TArtifactID aid); //for artifact merchant and black market -> buying for any resource in special building / advobject
-	bool sellArtifact( const IMarket *m, const CGHeroInstance *h, TArtifactID aid, TArtifactID rid); //for artifact merchant selling
+	bool sellArtifact( const IMarket *m, const CGHeroInstance *h, TArtifactInstanceID aid, TResource rid); //for artifact merchant selling
 	//void lootArtifacts (TArtHolder source, TArtHolder dest, std::vector<ui32> &arts); //after battle - move al arts to winer
 	bool buySecSkill( const IMarket *m, const CGHeroInstance *h, int skill);
 	bool garrisonSwap(si32 tid);

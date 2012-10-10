@@ -118,7 +118,7 @@ SettingsListener::~SettingsListener()
 	parent.listeners.erase(this);
 }
 
-void SettingsListener::nodeInvalidated(const std::vector<std::string> changedPath)
+void SettingsListener::nodeInvalidated(const std::vector<std::string> &changedPath)
 {
 	if (!callback)
 		return;
@@ -168,9 +168,9 @@ JsonNode& Settings::operator [](std::string value)
 {
 	return node[value];
 }
-
-template struct SettingsStorage::NodeAccessor<SettingsListener>;
-template struct SettingsStorage::NodeAccessor<Settings>;
+// 
+// template DLL_LINKAGE struct SettingsStorage::NodeAccessor<SettingsListener>;
+// template DLL_LINKAGE struct SettingsStorage::NodeAccessor<Settings>;
 
 static void setButton(ButtonInfo &button, const JsonNode &g)
 {
@@ -285,3 +285,8 @@ void config::CConfigHandler::init()
 
 	SetResolution(screenRes["width"].Float(), screenRes["height"].Float());
 }
+
+// Force instantiation of the SettingsStorage::NodeAccessor class template.
+// That way method definitions can sit in the cpp file
+template struct SettingsStorage::NodeAccessor<SettingsListener>;
+template struct SettingsStorage::NodeAccessor<Settings>;

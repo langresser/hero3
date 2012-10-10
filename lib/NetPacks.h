@@ -221,7 +221,7 @@ struct PackageApplied : public CPackForClient //94
 
 struct SystemMessage : public CPackForClient //95
 {
-	SystemMessage(const std::string Text) : text(Text){type = 95;};
+	SystemMessage(const std::string & Text) : text(Text){type = 95;};
 	SystemMessage(){type = 95;};
 	void applyCl(CClient *cl);
 
@@ -1323,7 +1323,7 @@ struct BattleResult : public CPackForClient//3003
 	ui8 winner; //0 - attacker, 1 - defender, [2 - draw (should be possible?)]
 	std::map<ui32,si32> casualties[2]; //first => casualties of attackers - map crid => number
 	TExpType exp[2]; //exp for attacker and defender
-	std::set<TArtifactID> artifacts; //artifacts taken from loser to winner - currently unused
+	std::set<TArtifactInstanceID> artifacts; //artifacts taken from loser to winner - currently unused
 
 	template <typename Handler> void serialize(Handler &h, const int version)
 	{
@@ -2272,7 +2272,7 @@ struct PlayerLeft : public CPregamePackToPropagate
 struct PlayersNames : public CPregamePackToPropagate
 {
 public:
-	std::map<ui32, std::string> playerNames;
+	std::map<TPlayerColor, std::string> playerNames;
 
 	void apply(CSelectionScreen *selScreen); //that functions are implemented in CPreGame.cpp
 

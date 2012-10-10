@@ -22,7 +22,6 @@ set(client_SRCS
         CAnimation.cpp
         CBitmapHandler.cpp
         CCastleInterface.cpp
-        CConfigHandler.cpp
         CCreatureWindow.cpp
         CDefHandler.cpp
         CGameInfo.cpp
@@ -50,3 +49,6 @@ ELSEIF(WIN32)
 ENDIF()
 
 target_link_libraries(vcmiclient vcmi ${Boost_LIBRARIES} ${SDL_LIBRARY} ${SDLIMAGE_LIBRARY} ${SDLMIXER_LIBRARY} ${SDLTTF_LIBRARY} ${ZLIB_LIBRARIES} ${FFMPEG_LIBRARIES} ${RT_LIB} ${DL_LIB})
+
+install(TARGETS vcmiclient DESTINATION ${BIN_DIR})
+

@@ -187,7 +187,7 @@ DLL_LINKAGE void SetAvailableHeroes::applyGs( CGameState *gs )
 
 	for (int i = 0; i < GameConstants::AVAILABLE_HEROES_PER_PLAYER; i++)
 	{
-		CGHeroInstance *h = (hid[i]>=0 ?  (CGHeroInstance*)gs->hpool.heroesPool[hid[i]] : NULL);
+		CGHeroInstance *h = (hid[i]>=0 ?  gs->hpool.heroesPool[hid[i]].get() : nullptr);
 		if(h && army[i])
 			h->setToArmy(army[i]);
 		p->availableHeroes.push_back(h);
@@ -320,7 +320,6 @@ DLL_LINKAGE void RemoveObject::applyGs( CGameState *gs )
 			{
 				if (q.obj == obj)
 				{
-					q.quest = NULL; //remove entries related to quest guards?
 					q.obj = NULL;
 				}
 			}
@@ -816,7 +815,7 @@ DLL_LINKAGE void AssembledArtifact::applyGs( CGameState *gs )
 		CArtifactInstance *constituentInstance = artSet->getArt(pos);
 
 		//move constituent from hero to be part of new, combined artifact
-		constituentInstance->removeFrom(al);
+		constituentInstance->removeFrom(ArtifactLocation(al.artHolder, pos));
 		combinedArt->addAsConstituent(constituentInstance, pos);
 		if(!vstd::contains(combinedArt->artType->possibleSlots[artSet->bearerType()], al.slot) && vstd::contains(combinedArt->artType->possibleSlots[artSet->bearerType()], pos))
 			al.slot = pos;
@@ -897,7 +896,7 @@ DLL_LINKAGE void NewTurn::applyGs( CGameState *gs )
 	//TODO not really a single root hierarchy, what about bonuses placed elsewhere? [not an issue with H3 mechanics but in the future...]
 
 	//count days without town
-	for( std::map<ui8, PlayerState>::iterator i=gs->players.begin() ; i!=gs->players.end();i++)
+	for( auto i=gs->players.begin() ; i!=gs->players.end(); i++)
 	{
 		if(i->second.towns.size() || gs->day == 1)
 			i->second.daysWithoutCastle = 0;

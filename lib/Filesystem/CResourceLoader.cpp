@@ -336,7 +336,7 @@ void CResourceHandler::initialize()
 	recurseInDir("ALL/MODS", 2); // look for mods. Depth 2 is required for now but won't cause issues if no mods present
 }
 
-void CResourceHandler::loadDirectory(const std::string mountPoint, const JsonNode & config)
+void CResourceHandler::loadDirectory(const std::string &mountPoint, const JsonNode & config)
 {
 	std::string URI = config["path"].String();
 	bool writeable = config["writeable"].Bool();
@@ -354,7 +354,7 @@ void CResourceHandler::loadDirectory(const std::string mountPoint, const JsonNod
 	}
 }
 
-void CResourceHandler::loadArchive(const std::string mountPoint, const JsonNode & config, EResType::Type archiveType)
+void CResourceHandler::loadArchive(const std::string &mountPoint, const JsonNode & config, EResType::Type archiveType)
 {
 	std::string URI = config["path"].String();
 	std::string filename = initialLoader->getResourceName(ResourceID(URI, archiveType));
@@ -363,7 +363,7 @@ void CResourceHandler::loadArchive(const std::string mountPoint, const JsonNode 
 		    shared_ptr<ISimpleResourceLoader>(new CLodArchiveLoader(filename)), false);
 }
 
-void CResourceHandler::loadFileSystem(const std::string fsConfigURI)
+void CResourceHandler::loadFileSystem(const std::string &fsConfigURI)
 {
 	auto fsConfigData = initialLoader->loadData(ResourceID(fsConfigURI, EResType::TEXT));
 
@@ -384,13 +384,6 @@ void CResourceHandler::loadFileSystem(const std::string fsConfigURI)
 				loadArchive(mountPoint.first, entry, EResType::ARCHIVE_SND);
 			if (entry["type"].String() == "vid")
 				loadArchive(mountPoint.first, entry, EResType::ARCHIVE_VID);
-
-			if (entry["type"].String() == "file") // for some compatibility, will be removed for 0.90
-			{
-				loadArchive(mountPoint.first, entry, EResType::ARCHIVE_LOD);
-				loadArchive(mountPoint.first, entry, EResType::ARCHIVE_SND);
-				loadArchive(mountPoint.first, entry, EResType::ARCHIVE_VID);
-			}
 
 			tlog5 << " took " << timer.getDiff() << " ms.\n";
 		}

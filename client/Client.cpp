@@ -26,7 +26,7 @@
 #include "../lib/map.h"
 #include "../lib/JsonNode.h"
 #include "mapHandler.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "Client.h"
 #include "CPreGame.h"
 #include "BattleInterface/CBattleInterface.h"
@@ -246,14 +246,17 @@ void CClient::loadGame( const std::string & fname )
 		tlog0 << "Server opened savegame properly.\n";
 
 	*serv << ui32(gs->scenarioOps->playerInfos.size()+1); //number of players + neutral
-	for(std::map<int, PlayerSettings>::iterator it = gs->scenarioOps->playerInfos.begin(); 
+	for(auto it = gs->scenarioOps->playerInfos.begin(); 
 		it != gs->scenarioOps->playerInfos.end(); ++it)
 	{
 		*serv << ui8(it->first); //players
 	}
-	*serv << ui8(255); // neutrals
+	*serv << ui8(GameConstants::NEUTRAL_PLAYER);
 	tlog0 <<"Sent info to server: "<<tmh.getDiff()<<std::endl;
-	
+
+	serv->enableStackSendingByID();
+	serv->disableSmartPointerSerialization();
+
 	{
 		CLoadFile lf(CResourceHandler::get()->getResourceName(ResourceID(fname, EResType::CLIENT_SAVEGAME)));
 		lf >> *this;
@@ -263,7 +266,7 @@ void CClient::loadGame( const std::string & fname )
 void CClient::newGame( CConnection *con, StartInfo *si )
 {
 	enum {SINGLE, HOST, GUEST} networkMode = SINGLE;
-	std::set<ui8> myPlayers;
+	std::set<TPlayerColor> myPlayers;
 
 	if (con == NULL) 
 	{
@@ -276,18 +279,17 @@ void CClient::newGame( CConnection *con, StartInfo *si )
 		networkMode = (con->connectionID == 1) ? HOST : GUEST;
 	}
 
-	for(std::map<int, PlayerSettings>::iterator it =si->playerInfos.begin(); 
-		it != si->playerInfos.end(); ++it)
+	for(auto it = si->playerInfos.begin(); it != si->playerInfos.end(); ++it)
 	{
 		if((networkMode == SINGLE)												//single - one client has all player
 		   || (networkMode != SINGLE && serv->connectionID == it->second.human)	//multi - client has only "its players"
 		   || (networkMode == HOST && it->second.human == false))				//multi - host has all AI players
 		{
-			myPlayers.insert(ui8(it->first)); //add player
+			myPlayers.insert(it->first); //add player
 		}
 	}
 	if(networkMode != GUEST)
-		myPlayers.insert(255); //neutral
+		myPlayers.insert(GameConstants::NEUTRAL_PLAYER);
 
 	CStopWatch tmh;
 	const_cast<CGameInfo*>(CGI)->state = new CGameState();
@@ -312,6 +314,8 @@ void CClient::newGame( CConnection *con, StartInfo *si )
 
 	c >> si;
 	tlog0 <<"\tSending/Getting info to/from the server: "<<tmh.getDiff()<<std::endl;
+	c.enableStackSendingByID();
+	c.disableSmartPointerSerialization();
 
 	gs = const_cast<CGameInfo*>(CGI)->state;
 	gs->scenarioOps = si;
@@ -330,7 +334,7 @@ void CClient::newGame( CConnection *con, StartInfo *si )
 
 	int humanPlayers = 0;
 	int sensibleAILimit = settings["session"]["oneGoodAI"].Bool() ? 1 : GameConstants::PLAYER_LIMIT;
-	for(std::map<int, PlayerSettings>::iterator it = gs->scenarioOps->playerInfos.begin(); 
+	for(auto it = gs->scenarioOps->playerInfos.begin(); 
 		it != gs->scenarioOps->playerInfos.end(); ++it)//initializing interfaces for players
 	{ 
 		ui8 color = it->first;
@@ -439,7 +443,7 @@ void CClient::serialize( Handler &h, const int version )
 			CGameInterface *nInt = NULL;
 			if(dllname.length())
 			{
-				if(pid == 255)
+				if(pid == GameConstants::NEUTRAL_PLAYER)
 				{
 					//CBattleCallback * cbc = new CBattleCallback(gs, pid, this);//FIXME: unused?
 					CBattleGameInterface *cbgi = CDynLibHandler::getNewBattleAI(dllname);
@@ -590,10 +594,10 @@ void CClient::battleFinished()
 
 void CClient::loadNeutralBattleAI()
 {
-	battleints[255] = CDynLibHandler::getNewBattleAI(settings["server"]["neutralAI"].String());
-	auto cbc = make_shared<CBattleCallback>(gs, 255, this);
-	battleCallbacks[255] = cbc;
-	battleints[255]->init(cbc.get());
+	battleints[GameConstants::NEUTRAL_PLAYER] = CDynLibHandler::getNewBattleAI(settings["server"]["neutralAI"].String());
+	auto cbc = make_shared<CBattleCallback>(gs, GameConstants::NEUTRAL_PLAYER, this);
+	battleCallbacks[GameConstants::NEUTRAL_PLAYER] = cbc;
+	battleints[GameConstants::NEUTRAL_PLAYER]->init(cbc.get());
 }
 
 void CClient::commitPackage( CPackForClient *pack )

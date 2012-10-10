@@ -9,7 +9,7 @@
 #include "CCursorHandler.h"
 #include "../CGameInfo.h"
 #include "../../CCallback.h"
-#include "../CConfigHandler.h"
+#include "../../lib/CConfigHandler.h"
 #include "../BattleInterface/CBattleInterface.h"
 #include "../BattleInterface/CBattleInterfaceClasses.h"
 #include "../CPlayerInterface.h"
@@ -443,7 +443,7 @@ void CAdventureMapButton::showAll(SDL_Surface * to)
 	CIntObject::showAll(to);
 
 	if (borderEnabled && borderColor.unused == 0)
-		CSDL_Ext::drawBorder(to, pos.x - 1, pos.y - 1, pos.w + 2, pos.h + 2, int3(borderColor.r, borderColor.g, borderColor.b));
+		CSDL_Ext::drawBorder(to, pos.x-1, pos.y-1, pos.w+2, pos.h+2, int3(borderColor.r, borderColor.g, borderColor.b));
 }
 
 void CHighlightableButton::select(bool on)
@@ -451,15 +451,15 @@ void CHighlightableButton::select(bool on)
 	selected = on;
 	if (on)
 	{
+		borderEnabled = true;
 		setState(HIGHLIGHTED);
 		callback();
-		borderEnabled = true;
 	}
 	else
 	{
+		borderEnabled = false;
 		setState(NORMAL);
 		callback2();
-		borderEnabled = false;
 	}
 
 	if(hoverTexts.size()>1)
@@ -1269,6 +1269,31 @@ void CBoundedLabel::setTxt(const std::string &Txt)
 	CLabel::setTxt(Txt);
 }
 
+void CBoundedLabel::blitLine(SDL_Surface *to, Point where, std::string what)
+{
+	const Font &f = *graphics->fonts[font];
+
+	size_t begin = 0;
+	size_t end;
+	std::string delimeters = "{}";
+	size_t currDelimeter = 0;
+
+	do
+	{
+		end = what.find_first_of(delimeters[currDelimeter % 2], begin);
+		std::string toPrint = what.substr(begin, end);
+		if (currDelimeter % 2)
+			CSDL_Ext::printAt(toPrint, where.x, where.y, font, Colors::Jasmine, to);
+		else
+			CSDL_Ext::printAt(toPrint, where.x, where.y, font, color, to);
+		begin = end;
+		where.x += f.getWidth(toPrint.c_str());
+
+		currDelimeter++;
+	}
+	while (begin++ != std::string::npos);
+}
+
 void CBoundedLabel::showAll(SDL_Surface * to)
 {
 	CIntObject::showAll(to);
@@ -1294,10 +1319,7 @@ void CBoundedLabel::showAll(SDL_Surface * to)
 			x += (pos.w - f.getWidth(line.c_str())) / 2;
 		}
 
-		if(line[0] == '{' && line[line.size()-1] == '}')
-			CSDL_Ext::printAt(line, x, base_y + i*dy, font, Colors::Jasmine, to);
-		else
-			CSDL_Ext::printAt(line, x, base_y + i*dy, font, color, to);
+		blitLine(to, Point(x, base_y + i * dy), line);
 	}
 }
 
@@ -1390,10 +1412,7 @@ void CTextBox::showAll(SDL_Surface * to)
 				x -= slider->pos.w / 2 + 5;
 		}
 
-		if(line[0] == '{' && line[line.size()-1] == '}')
-			CSDL_Ext::printAt(line, x, base_y + i*dy, font, Colors::Jasmine, to);
-		else
-			CSDL_Ext::printAt(line, x, base_y + i*dy, font, color, to);
+		blitLine(to, Point(x, base_y + i * dy), line);
 	}
 
 }
@@ -1765,13 +1784,13 @@ void CWindowObject::updateShadow()
 
 void CWindowObject::setShadow(bool on)
 {
-	vstd::clear_pointer(shadow);
-
 	//size of shadow
 	static const int size = 8;
 
 	if (on == bool(shadow))
 		return;
+
+	vstd::clear_pointer(shadow);
 
 	//object too small to cast shadow
 	if (pos.h <= size || pos.w <= size)

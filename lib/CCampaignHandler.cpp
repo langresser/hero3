@@ -390,14 +390,10 @@ void CCampaignScenario::prepareCrossoverHeroes( std::vector<CGHeroInstance *> he
 	//trimming creatures
 	BOOST_FOREACH(CGHeroInstance * cgh, crossoverHeroes)
 	{
-		for (TSlots::const_iterator j = cgh->Slots().begin(); j != cgh->Slots().end(); j++)
+		vstd::erase_if(cgh->stacks, [&](const std::pair<TSlot, CStackInstance *> & j)
 		{
-			if (!(travelOptions.monstersKeptByHero[j->first / 8] & (1 << (j->first%8)) ))
-			{
-				cgh->eraseStack(j->first);
-				j = cgh->Slots().begin();
-			}
-		}
+			return !(travelOptions.monstersKeptByHero[j.first / 8] & (1 << (j.first%8)) );
+		});
 	}
 }
 
@@ -426,10 +422,14 @@ void CCampaignState::mapConquered( const std::vector<CGHeroInstance*> & heroes )
 	camp->scenarios[currentMap].conquered = true;
 }
 
-CScenarioTravel::STravelBonus CCampaignState::getBonusForCurrentMap() const
+boost::optional<CScenarioTravel::STravelBonus> CCampaignState::getBonusForCurrentMap() const
 {
-	assert(chosenCampaignBonuses.count(currentMap));
-	return getCurrentScenario().travelOptions.bonusesToChoose[currentBonusID()];
+	auto bonuses = getCurrentScenario().travelOptions.bonusesToChoose;
+	assert(chosenCampaignBonuses.count(currentMap) || bonuses.size() == 0);
+	if(bonuses.size())
+		return bonuses[currentBonusID()];
+	else
+		return boost::optional<CScenarioTravel::STravelBonus>();
 }
 
 const CCampaignScenario & CCampaignState::getCurrentScenario() const

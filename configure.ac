@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT(vcmi, 0.89)				# Follow VCMI_VERSION in GameConstants.h
+AC_INIT(vcmi, 0.90)				# Follow VCMI_VERSION in GameConstants.h
 AM_INIT_AUTOMAKE
 AC_CONFIG_MACRO_DIR([aclocal/m4])
 
@@ -51,7 +51,6 @@ AX_BOOST_BASE([1.36])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
 AX_BOOST_THREAD
-AX_BOOST_IOSTREAMS
 AX_BOOST_PROGRAM_OPTIONS
 
 # Check which libs are necessary
@@ -110,4 +109,4 @@ AC_SUBST(VCMI_AI_LIBS_DIR)
 VCMI_SCRIPTING_LIBS_DIR="$libdir/vcmi/Scripting"
 AC_SUBST(VCMI_SCRIPTING_LIBS_DIR)
 
-AC_OUTPUT(Makefile lib/Makefile client/Makefile server/Makefile AI/FuzzyLite/Makefile AI/Makefile AI/StupidAI/Makefile AI/EmptyAI/Makefile AI/VCAI/Makefile Scripting/ERM/Makefile)
+AC_OUTPUT(Makefile lib/Makefile client/Makefile server/Makefile AI/FuzzyLite/Makefile AI/Makefile AI/StupidAI/Makefile AI/BattleAI/Makefile AI/EmptyAI/Makefile AI/VCAI/Makefile Scripting/ERM/Makefile)

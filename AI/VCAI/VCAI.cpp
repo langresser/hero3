@@ -2,6 +2,7 @@
 #include "VCAI.h"
 #include "../../lib/UnlockGuard.h"
 #include "../../lib/CObjectHandler.h"
+#include "../../lib/CConfigHandler.h"
 #include "Fuzzy.h"
 
 #include <fstream>
@@ -378,7 +379,12 @@ ui64 evaluateDanger(crint3 tile, const CGHeroInstance *visitor)
 
 	ui64 objectDanger = 0, guardDanger = 0;
 
-	if(const CGObjectInstance * dangerousObject = backOrNull(cb->getVisitableObjs(tile)))
+	auto visitableObjects = cb->getVisitableObjs(tile);
+	// in some scenarios hero happens to be "under" the object (eg town). Then we consider ONLY the hero.
+	if(vstd::contains_if(visitableObjects, objWithID<Obj::HERO>))
+		erase_if(visitableObjects, ! boost::bind(objWithID<Obj::HERO>, _1));
+
+	if(const CGObjectInstance * dangerousObject = backOrNull(visitableObjects))
 	{
 		objectDanger = evaluateDanger(dangerousObject); //unguarded objects can also be dangerous or unhandled
 		if (objectDanger)
@@ -456,7 +462,6 @@ VCAI::VCAI(void)
 {
 	LOG_ENTRY;
 	myCb = NULL;
-	battleAIName = "StupidAI";
 	makingTurn = NULL;
 }
 
@@ -1046,7 +1051,8 @@ void VCAI::makeTurnInternal()
 	try
 	{
 		//Pick objects reserved in previous turn - we expect only nerby objects there
-		BOOST_FOREACH (auto hero, reservedHeroesMap)
+		auto reservedHeroesCopy = reservedHeroesMap; //work on copy => the map may be changed while iterating (eg because hero died when attempting a goal)
+		BOOST_FOREACH (auto hero, reservedHeroesCopy)
 		{
 			cb->setSelection(hero.first.get());
 			boost::sort (hero.second, isCloser);
@@ -1122,9 +1128,14 @@ void VCAI::performObjectInteraction(const CGObjectInstance * obj, HeroPtr h)
 			break;
 		case Obj::TOWN:
 			moveCreaturesToHero (dynamic_cast<const CGTownInstance *>(obj));
-			townVisitsThisWeek[h].push_back(h->visitedTown);
+			if (h->visitedTown) //we are inside, not just attacking
+			{
+				townVisitsThisWeek[h].push_back(h->visitedTown);
+				if (!h->hasSpellbook() && cb->getResourceAmount(Res::GOLD) >= GameConstants::SPELLBOOK_GOLD_COST + saving[Res::GOLD] &&
+					h->visitedTown->hasBuilt (EBuilding::MAGES_GUILD_1))
+					cb->buyArtifact(h.get(), 0); //buy spellbook
+			}
 			break;
-		break;
 	}
 }
 
@@ -1726,41 +1737,6 @@ bool VCAI::isAccessibleForHero(const int3 & pos, HeroPtr h, bool includeAllies /
 	return cb->getPathInfo(pos)->reachable();
 }
 
-class cannotFulfillGoalException : public std::exception
-{
-	std::string msg;
-public:
-	explicit cannotFulfillGoalException(crstring _Message) : msg(_Message)
-	{
-	}
-
-	virtual ~cannotFulfillGoalException() throw ()
-	{
-	};
-
-	const char *what() const throw () OVERRIDE
-	{
-		return msg.c_str();
-	}
-};
-class goalFulfilledException : public std::exception
-{
-	std::string msg;
-public:
-	explicit goalFulfilledException(crstring _Message) : msg(_Message)
-	{
-	}
-
-	virtual ~goalFulfilledException() throw ()
-	{
-	};
-
-	const char *what() const throw () OVERRIDE
-	{
-		return msg.c_str();
-	}
-};
-
 bool VCAI::moveHeroToTile(int3 dst, HeroPtr h)
 {
 	visitedObject = NULL;
@@ -1824,6 +1800,8 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h)
 	if (visitedObject) //we step into something interesting
 	{
 		performObjectInteraction (visitedObject, h);
+		//BNLOG("Hero %s moved from %s to %s at %s", h->name % startHpos % visitedObject->hoverName % h->visitablePos());
+		//throw goalFulfilledException (CGoal(GET_OBJ).setobjid(visitedObject->id));
 	}
 
 	if(h) //we could have lost hero after last move
@@ -1839,7 +1817,7 @@ bool VCAI::moveHeroToTile(int3 dst, HeroPtr h)
 }
 
 int howManyTilesWillBeDiscovered(const int3 &pos, int radious)
-{
+{ //TODO: do not explore dead-end boundaries
 	int ret = 0;
 	for(int x = pos.x - radious; x <= pos.x + radious; x++)
 	{
@@ -1848,12 +1826,35 @@ int howManyTilesWillBeDiscovered(const int3 &pos, int radious)
 			int3 npos = int3(x,y,pos.z);
 			if(cb->isInTheMap(npos) && pos.dist2d(npos) - 0.5 < radious  && !cb->isVisible(npos))
 			{
-				ret++;
+				if (!boundaryBetweenTwoPoints (pos, npos))
+					ret++;
 			}
 		}
 	}
 
 	return ret;
+}
+
+bool boundaryBetweenTwoPoints (int3 pos1, int3 pos2) //determines if two points are separated by known barrier
+{
+	int xMin = std::min (pos1.x, pos2.x);
+	int xMax = std::max (pos1.x, pos2.x);
+	int yMin = std::min (pos1.y, pos2.y);
+	int yMax = std::max (pos1.y, pos2.y);
+
+	for (int x = xMin; x <= xMax; ++x)
+	{
+		for (int y = yMin; y <= yMax; ++y)
+		{
+			int3 tile = int3(x, y, pos1.z); //use only on same level, ofc
+			if (abs(pos1.dist2d(tile) - pos2.dist2d(tile)) < 1.5)
+			{
+				if (!(cb->isVisible(tile) && cb->getTile(tile)->blocked)) //if there's invisible or unblocked tile inbetween, it's good 
+					return false;
+			}
+		}
+	}
+	return true; //if all are visible and blocked, we're at dead end
 }
 
 int howManyTilesWillBeDiscovered(int radious, int3 pos, crint3 dir)
@@ -1904,7 +1905,7 @@ void VCAI::tryRealize(CGoal g)
 			//{
 				if (ai->moveHeroToTile(g.tile, g.hero.get()))
 				{
-					throw goalFulfilledException("");
+					throw goalFulfilledException (g);
 				}
 			//}
 			//else
@@ -1917,7 +1918,7 @@ void VCAI::tryRealize(CGoal g)
 				throw cannotFulfillGoalException("Cannot visit tile: hero is out of MPs!");
 			if (ai->moveHeroToTile(g.tile, g.hero.get()))
 			{
-				throw goalFulfilledException("");
+				throw goalFulfilledException (g);
 			}
 		}
 		break;
@@ -1967,6 +1968,9 @@ void VCAI::tryRealize(CGoal g)
 		break;
 
 	case COLLECT_RES: //TODO: use piles and mines?
+		if(cb->getResourceAmount(g.resID) >= g.value)
+			throw cannotFulfillGoalException("Goal is already fulfilled!");
+
 		if(const CGObjectInstance *obj = cb->getObj(g.objid, false))
 		{
 			if(const IMarket *m = IMarket::castFrom(obj, false))
@@ -1977,10 +1981,13 @@ void VCAI::tryRealize(CGoal g)
 					int toGive, toGet;
 					m->getOffer(i, g.resID, toGive, toGet, EMarketMode::RESOURCE_RESOURCE);
 					toGive = toGive * (cb->getResourceAmount(i) / toGive);
+					//TODO trade only as much as needed
 					cb->trade(obj, EMarketMode::RESOURCE_RESOURCE, i, g.resID, toGive);
 					if(cb->getResourceAmount(g.resID) >= g.value)
 						return;
-				} //TODO: stop when we've sold all the resources
+				} 
+
+				throw cannotFulfillGoalException("I cannot get needed resources by trade!");
 			}
 			else
 			{
@@ -2061,6 +2068,25 @@ void VCAI::endTurn()
 	tlog4 << "Player " << playerID << " ended turn\n";
 }
 
+bool VCAI::fulfillsGoal (CGoal &goal, CGoal &mainGoal)
+{
+	if (mainGoal.goalType == GET_OBJ && goal.goalType == VISIT_TILE) //deduce that GET_OBJ was completed by visiting object's tile
+	{ //TODO: more universal mechanism
+		if (cb->getObj(mainGoal.objid)->visitablePos() == goal.tile)
+			return true;
+	}
+	return false;
+}
+bool VCAI::fulfillsGoal (CGoal &goal, const CGoal &mainGoal)
+{
+	if (mainGoal.goalType == GET_OBJ && goal.goalType == VISIT_TILE) //deduce that GET_OBJ was completed by visiting object's tile
+	{ //TODO: more universal mechanism
+		if (cb->getObj(mainGoal.objid)->visitablePos() == goal.tile)
+			return true;
+	}
+	return false;
+}
+
 void VCAI::striveToGoal(const CGoal &ultimateGoal)
 {
 	if (ultimateGoal.invalid())
@@ -2126,9 +2152,8 @@ void VCAI::striveToGoal(const CGoal &ultimateGoal)
 		catch(goalFulfilledException &e)
 		{
 			completeGoal (goal);
-			if (maxGoals > 98) //completed goal was main goal
-				//TODO: find better condition
-			return;
+			if (fulfillsGoal (goal, ultimateGoal) || maxGoals > 98) //completed goal was main goal //TODO: find better condition
+				return; 
 		}
 		catch(std::exception &e)
 		{
@@ -2173,9 +2198,8 @@ void VCAI::striveToGoal(const CGoal &ultimateGoal)
 			}
 			catch(goalFulfilledException &e)
 			{
-				completeGoal (goal);
-				if (maxGoals > 98) //completed goal was main goal
-					//TODO: find better condition
+				completeGoal (goal); //FIXME: deduce that we have realized GET_OBJ goal
+				if (fulfillsGoal (goal, abstractGoal) || maxGoals > 98) //completed goal was main goal
 					return;
 			}
 			catch(std::exception &e)
@@ -2190,7 +2214,7 @@ void VCAI::striveToGoal(const CGoal &ultimateGoal)
 
 void VCAI::striveToQuest (const QuestInfo &q)
 {
-	if (q.quest && q.quest->progress < CQuest::COMPLETE)
+	if (q.quest->missionType && q.quest->progress < CQuest::COMPLETE) //FIXME: quests are never synchronized. Pointer handling needed
 	{
 		MetaString ms;
 		q.quest->getRolloverText(ms, false);
@@ -2551,6 +2575,14 @@ void VCAI::requestSent(const CPackForServer *pack, int requestID)
 	}
 }
 
+std::string VCAI::getBattleAIName() const
+{
+	if(settings["server"]["neutralAI"].getType() == JsonNode::DATA_STRING)
+		return settings["server"]["neutralAI"].String();
+	else
+		return "StupidAI";
+}
+
 AIStatus::AIStatus()
 {
 	battle = NO_BATTLE;
@@ -2708,7 +2740,7 @@ int3 whereToExplore(HeroPtr h)
 			}
 
 			if(profits.empty())
-				throw cannotFulfillGoalException("Cannot explore - no possible ways found!");
+				return int3 (-1,-1,-1);
 
 			auto bestDest = profits.end();
 			bestDest--;
@@ -2739,9 +2771,9 @@ TSubgoal CGoal::whatToDoToAchieve()
 			case EVictoryConditionType::ARTIFACT:
 				return CGoal(GET_ART_TYPE).setaid(vc.ID);
 			case EVictoryConditionType::BEATHERO:
-				return CGoal(GET_OBJ).setobjid(vc.ID);
+				return CGoal(GET_OBJ).setobjid(vc.obj->id);
 			case EVictoryConditionType::BEATMONSTER:
-				return CGoal(GET_OBJ).setobjid(vc.ID);
+				return CGoal(GET_OBJ).setobjid(vc.obj->id);
 			case EVictoryConditionType::BUILDCITY:
 				//TODO build castle/capitol
 				break;
@@ -2786,7 +2818,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 				}
 				break;
 			case EVictoryConditionType::CAPTURECITY:
-				return CGoal(GET_OBJ).setobjid(vc.ID);
+				return CGoal(GET_OBJ).setobjid(vc.obj->id);
 			case EVictoryConditionType::GATHERRESOURCE:
 				return CGoal(COLLECT_RES).setresID(vc.ID).setvalue(vc.count);
 				//TODO mines? piles? marketplace?
@@ -2833,7 +2865,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 					}
 				}
 			}
-			if (o)
+			if (o && isReachable(o))
 				return CGoal(GET_OBJ).setobjid(o->id);
 			else
 				return CGoal(EXPLORE);
@@ -2915,12 +2947,81 @@ TSubgoal CGoal::whatToDoToAchieve()
 
 		}
 		throw cannotFulfillGoalException("Cannot reach given tile!");
-		//return CGoal(EXPLORE); // TODO improve
 	case EXPLORE:
 		{
+			auto objs = ai->visitableObjs; //try to use buildings that uncover map
+			erase_if(objs, [&](const CGObjectInstance *obj) -> bool
+			{
+				if (vstd::contains(ai->alreadyVisited, obj))
+					return true;
+				switch (obj->ID)
+				{
+					case Obj::REDWOOD_OBSERVATORY:
+					case Obj::PILLAR_OF_FIRE:
+					case Obj::CARTOGRAPHER:
+					case Obj::SUBTERRANEAN_GATE: //TODO: check ai->knownSubterraneanGates
+					//case Obj::MONOLITH1:
+					//case obj::MONOLITH2:
+					//case obj::MONOLITH3:
+					//case Obj::WHIRLPOOL:
+						return false; //do not erase
+						break;
+					default:
+						return true;
+				}
+			});
+			if (objs.size())
+			{
+				if (hero.get(true))
+				{
+					BOOST_FOREACH (auto obj, objs)
+					{
+						auto pos = obj->visitablePos();
+						//FIXME: this confition fails if everything but guarded subterranen gate was explored. in this case we should gather army for hero
+						if (isSafeToVisit(hero, pos) && ai->isAccessibleForHero(pos, hero))
+							return CGoal(VISIT_TILE).settile(pos).sethero(hero);
+					}
+				}
+				else
+				{
+					BOOST_FOREACH (auto obj, objs)
+					{
+						auto pos = obj->visitablePos();
+						if (ai->isAccessible (pos)) //TODO: check safety?
+							return CGoal(VISIT_TILE).settile(pos).sethero(hero);
+					}
+				}
+			}
+
 			if (hero)
 			{
-				return CGoal(VISIT_TILE).settile(whereToExplore(hero)).sethero(hero);
+				int3 t = whereToExplore(hero);
+				if (t.z == -1) //no safe tile to explore - we need to break!
+				{
+					erase_if (objs, [&](const CGObjectInstance *obj) -> bool
+					{
+						switch (obj->ID)
+						{
+							case Obj::CARTOGRAPHER:
+							case Obj::SUBTERRANEAN_GATE:
+							//case Obj::MONOLITH1:
+							//case obj::MONOLITH2:
+							//case obj::MONOLITH3:
+							//case Obj::WHIRLPOOL:
+								return false; //do not erase
+								break;
+							default:
+								return true;
+						}
+					});
+					if (objs.size())
+					{
+						return CGoal (VISIT_TILE).settile(objs.front()->visitablePos()).sethero(hero).setisAbstract(true);
+					}
+					else
+						throw cannotFulfillGoalException("Cannot explore - no possible ways found!");
+				}
+				return CGoal(VISIT_TILE).settile(t).sethero(hero);
 			}
 
 			auto hs = cb->getHeroesInfo();
@@ -3183,13 +3284,23 @@ TSubgoal CGoal::whatToDoToAchieve()
 				return (obj->ID != Obj::TOWN && obj->ID != Obj::HERO) //not town/hero
 					|| cb->getPlayerRelations(ai->playerID, obj->tempOwner) != 0; //not enemy
 			});
+			
+			if (objs.empty()) //experiment - try to conquer dwellings and mines, it should pay off
+			{
+				ai->retreiveVisitableObjs(objs);
+				erase_if(objs, [&](const CGObjectInstance *obj)
+				{
+					return (obj->ID != Obj::CREATURE_GENERATOR1 && obj->ID != Obj::MINE) //not dwelling or mine
+						|| cb->getPlayerRelations(ai->playerID, obj->tempOwner) != 0; //not enemy
+				});
+			}
 
 			if(objs.empty())
 				return CGoal(EXPLORE); //we need to find an enemy
 
 			erase_if(objs,  [&](const CGObjectInstance *obj)
 			{
-				return !isSafeToVisit(h, obj->visitablePos());
+				return !isSafeToVisit(h, obj->visitablePos()) || vstd::contains (ai->reservedObjs, obj); //no need to capture same object twice
 			});
 
 			if(objs.empty())
@@ -3198,8 +3309,10 @@ TSubgoal CGoal::whatToDoToAchieve()
 			boost::sort(objs, isCloser);
 			BOOST_FOREACH(const CGObjectInstance *obj, objs)
 			{
-				if(ai->isAccessibleForHero(obj->visitablePos(), h))
+				if (ai->isAccessibleForHero(obj->visitablePos(), h))
 				{
+					ai->reserveObject(h, obj); //no one else will capture same object until we fail
+
 					if (obj->ID == Obj::HERO)
 						return CGoal(VISIT_HERO).sethero(h).setobjid(obj->id).setisAbstract(true); //track enemy hero
 					else
@@ -3256,7 +3369,7 @@ TSubgoal CGoal::whatToDoToAchieve()
 						int primaryPath, secondaryPath;
 						auto h = otherHeroes.back();
 						cb->setSelection(hero.h);
-						primaryPath = cb->getPathInfo(h->pos)->turns;
+						primaryPath = cb->getPathInfo(h->pos)->turns; //FIXME: investigate crash at this line
 						cb->setSelection(h);
 						secondaryPath = cb->getPathInfo(hero->pos)->turns;
 
@@ -3479,10 +3592,20 @@ bool shouldVisit(HeroPtr h, const CGObjectInstance * obj)
 	{
 		case Obj::BORDERGUARD:
 		case Obj::BORDER_GATE:
+		{
+			BOOST_FOREACH (auto q, ai->myCb->getMyQuests())
+			{
+				if (q.obj == obj)
+				{
+					return false; // do not visit guards or gates when wandering
+				}
+			}
+			return true; //we don't have this quest yet
+			break;
+		}
 		case Obj::SEER_HUT:
 		case Obj::QUEST_GUARD:
 		{
-			//return false; //fixme: avoid crash
 			BOOST_FOREACH (auto q, ai->myCb->getMyQuests())
 			{
 				if (q.obj == obj)
@@ -3552,6 +3675,13 @@ bool shouldVisit(HeroPtr h, const CGObjectInstance * obj)
 		case Obj::MAGIC_WELL:
 			return h->mana < h->manaLimit();
 			break;
+		case Obj::PRISON:
+			return ai->myCb->getHeroesInfo().size() < GameConstants::MAX_HEROES_PER_PLAYER;
+			break;
+
+		case Obj::BOAT:
+			return false;
+			//Boats are handled by pathfinder
 	}
 
 	if (obj->wasVisited(*h)) //it must pointer to hero instance, heroPtr calls function wasVisited(ui8 player);

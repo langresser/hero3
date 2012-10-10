@@ -158,6 +158,16 @@ struct CGoal
 	HeroPtr hero; SETTER(HeroPtr, hero)
 	const CGTownInstance *town; SETTER(CGTownInstance *, town)
 	int bid; SETTER(int, bid)
+
+	bool operator== (CGoal &g)
+	{
+		switch (goalType)
+		{
+			case EGoals::GET_OBJ:
+				return objid == g.objid;
+		}
+		return false;
+	}
 };
 
 enum {NOT_VISIBLE = 0, NOT_CHECKED = 1, NOT_AVAILABLE};
@@ -269,8 +279,10 @@ public:
 	int3 explorationNewPoint(int radius, HeroPtr h, std::vector<std::vector<int3> > &tiles);
 	void recruitHero();
 
-	virtual void init(CCallback * CB);
-	virtual void yourTurn();
+	virtual std::string getBattleAIName() const OVERRIDE;
+
+	virtual void init(CCallback * CB) OVERRIDE;
+	virtual void yourTurn() OVERRIDE;
 
 	virtual void heroGotLevel(const CGHeroInstance *hero, int pskill, std::vector<ui16> &skills, int queryID) OVERRIDE; //pskill is gained primary skill, interface has to choose one of given skills and call callback with selection id
 	virtual void commanderGotLevel (const CCommanderInstance * commander, std::vector<ui32> skills, int queryID) OVERRIDE; //TODO
@@ -342,7 +354,9 @@ public:
 	void setGoal(HeroPtr h, const CGoal goal);
 	void setGoal(HeroPtr h, EGoals goalType = INVALID);
 	void completeGoal (const CGoal goal); //safely removes goal from reserved hero
-	void striveToQuest (const QuestInfo &q); 
+	void striveToQuest (const QuestInfo &q);
+	bool fulfillsGoal (CGoal &goal, CGoal &mainGoal);
+	bool fulfillsGoal (CGoal &goal, const CGoal &mainGoal); //TODO: something smarter
 
 	void recruitHero(const CGTownInstance * t);
 	std::vector<const CGObjectInstance *> getPossibleDestinations(HeroPtr h);
@@ -389,6 +403,43 @@ public:
 	void requestActionASAP(boost::function<void()> whatToDo); 
 };
 
+std::string goalName(EGoals goalType); //TODO: move to CGoal class?
+
+class cannotFulfillGoalException : public std::exception
+{
+	std::string msg;
+public:
+	explicit cannotFulfillGoalException(crstring _Message) : msg(_Message)
+	{
+	}
+
+	virtual ~cannotFulfillGoalException() throw ()
+	{
+	};
+
+	const char *what() const throw () OVERRIDE
+	{
+		return msg.c_str();
+	}
+};
+class goalFulfilledException : public std::exception
+{
+public:
+	CGoal goal;
+
+	explicit goalFulfilledException(CGoal Goal) : goal(Goal)
+	{
+	}
+
+	virtual ~goalFulfilledException() throw ()
+	{
+	};
+
+	const char *what() const throw () OVERRIDE
+	{
+		return goalName(goal.goalType).c_str();
+	}
+};
 
 template<int id>
 bool objWithID(const CGObjectInstance *obj)
@@ -401,3 +452,4 @@ bool isWeeklyRevisitable (const CGObjectInstance * obj);
 bool shouldVisit (HeroPtr h, const CGObjectInstance * obj);
 
 void makePossibleUpgrades(const CArmedInstance *obj);
+bool boundaryBetweenTwoPoints (int3 pos1, int3 pos2);

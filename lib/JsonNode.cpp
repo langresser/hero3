@@ -882,6 +882,9 @@ bool JsonValidator::addMessage(const std::string &message)
 JsonValidator::JsonValidator(JsonNode &root, bool Minimize):
 	minimize(Minimize)
 {
+	if (root.getType() != JsonNode::DATA_STRUCT)
+		return;
+
 	JsonNode schema;
 	schema.swap(root["schema"]);
 	root.Struct().erase("schema");
@@ -925,9 +928,31 @@ Bonus * ParseBonus (const JsonVector &ability_vec) //TODO: merge with AddAbility
 	b->turnsRemain = 0;
 	return b;
 }
+template <typename T>
+const T & parseByMap(const std::map<std::string, T> & map, const JsonNode * val, std::string err)
+{
+	static T defaultValue;
+	if (!val->isNull())
+	{
+		std::string type = val->String();
+		auto it = map.find(type);
+		if (it == map.end())
+		{
+			tlog1 << "Error: invalid " << err << type << std::endl;
+			return defaultValue;
+		}
+		else
+		{
+			return it->second;
+		}
+	}
+	else
+		return defaultValue;
+};
 
 Bonus * ParseBonus (const JsonNode &ability)
 {
+
 	Bonus * b = new Bonus();
 	const JsonNode *value;
 
@@ -950,18 +975,7 @@ Bonus * ParseBonus (const JsonNode &ability)
 
 	value = &ability["valueType"];
 	if (!value->isNull())
-	{
-		std::string type = value->String();
-		auto it = bonusValueMap.find(type);
-		if (it == bonusValueMap.end())
-		{
-			tlog1 << "Error: invalid value type " << type << std::endl;
-		}
-		else
-		{
-			b->valType = it->second;
-		}
-	}
+		b->valType = parseByMap(bonusValueMap, value, "value type ");
 
 	value = &ability["additionalInfo"];
 	if (!value->isNull())
@@ -979,61 +993,63 @@ Bonus * ParseBonus (const JsonNode &ability)
 	if (!value->isNull())
 		b->description = value->String();
 
-	
 	value = &ability["effectRange"];
 	if (!value->isNull())
-	{
-		std::string type = value->String();
-		auto it = bonusLimitEffect.find(type);
-		if (it == bonusLimitEffect.end())
-		{
-			tlog1 << "Error: invalid effect range " << type << std::endl;
-		}
-		else
-		{
-			b->effectRange = it->second;
-		}
-	}
-
-	
+		b->valType = parseByMap(bonusLimitEffect, value, "effect range ");
 	value = &ability["duration"];
 	if (!value->isNull())
-	{
-		std::string type = value->String();
-		auto it = bonusDurationMap.find(type);
-		if (it == bonusDurationMap.end())
-		{
-			tlog1 << "Error: invalid duration type " << type << std::endl;
-		}
-		else
-		{
-			b->duration = it->second;
-		}
-	}
-
+		b->valType = parseByMap(bonusDurationMap, value, "duration type ");
 	value = &ability["source"];
 	if (!value->isNull())
+		b->valType = parseByMap(bonusSourceMap, value, "source type ");
+
+	value = &ability["limiter"];
+	if (!value->isNull())
+		b->limiter = parseByMap(bonusLimiterMap, value, "limiter type ");
+
+	value = &ability["propagator"];
+	if (!value->isNull())
+		b->propagator = parseByMap(bonusPropagatorMap, value, "propagator type ");
+
+	return b;
+}
+
+//returns first Key with value equal to given one
+template<class Key, class Val>
+Key reverseMapFirst(const Val & val, const std::map<Key, Val> map)
+{
+	BOOST_FOREACH(auto it, map)
 	{
-		std::string type = value->String();
-		auto it = bonusSourceMap.find(type);
-		if (it == bonusSourceMap.end())
+		if(it.second == val)
 		{
-			tlog1 << "Error: invalid source type " << type << std::endl;
-		}
-		else
-		{
-			b->source = it->second;
+			return it.first;
 		}
 	}
+	assert(0);
+	return "";
+}
 
-	//TODO:
-
-	//value = &ability["limiter"];
-	//if (!value->isNull())
-	//	b->limiter = value->Float();
-
-	//value = &ability["propagator"];
-	//if (!value->isNull())
-	//	b->propagator = value->Float();
-	return b;
+DLL_LINKAGE void UnparseBonus( JsonNode &node, const Bonus * bonus )
+{
+	node["type"].String() = reverseMapFirst<std::string, int>(bonus->type, bonusNameMap);
+	node["subtype"].Float() = bonus->subtype;
+	node["val"].Float() = bonus->val;
+	node["valueType"].String() = reverseMapFirst<std::string, int>(bonus->valType, bonusValueMap);
+	node["additionalInfo"].Float() = bonus->additionalInfo;
+	node["turns"].Float() = bonus->turnsRemain;
+	node["sourceID"].Float() = bonus->source;
+	node["description"].String() = bonus->description;
+	node["effectRange"].String() = reverseMapFirst<std::string, int>(bonus->effectRange, bonusLimitEffect);
+	node["duration"].String() = reverseMapFirst<std::string, int>(bonus->duration, bonusDurationMap);
+	node["source"].String() = reverseMapFirst<std::string, int>(bonus->source, bonusSourceMap);
+	if(bonus->limiter != nullptr)
+	{
+		node["limiter"].String() = reverseMapFirst<std::string, TLimiterPtr>(bonus->limiter, bonusLimiterMap);
+	}
+	if(bonus->propagator != nullptr)
+	{
+		node["propagator"].String() = reverseMapFirst<std::string, TPropagatorPtr>(bonus->propagator, bonusPropagatorMap);
+	}
+	
+	
 }

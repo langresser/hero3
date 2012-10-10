@@ -12,7 +12,7 @@
 
 namespace GameConstants
 {
-	const std::string VCMI_VERSION = "VCMI 0.89c";
+	const std::string VCMI_VERSION = "VCMI 0.9";
 
 	/* 
 	 * DATA_DIR contains the game data (Data/, MP3/, ...).
@@ -110,6 +110,8 @@ namespace ELossConditionType
 namespace EAlignment
 {
 	enum EAlignment { GOOD, EVIL, NEUTRAL };
+
+	const std::string names [3] = {"good", "evil", "neutral"}; //for parsing from config file
 }
 
 namespace ETownType
@@ -405,4 +407,6 @@ typedef si32 TBonusSubtype;
 typedef si32 TSlot;
 typedef si32 TQuantity;
 typedef si32 TArtifactID;
+typedef si32 TArtifactInstanceID;
 typedef ui32 TCreature; //creature id
+typedef ui8 TPlayerColor;

@@ -10,7 +10,7 @@
 #include "../../CCallback.h"
 #include "../CSpellWindow.h"
 #include "../Graphics.h"
-#include "../CConfigHandler.h"
+#include "../../lib/CConfigHandler.h"
 #include "../UIFramework/CGuiHandler.h"
 #include "../UIFramework/CIntObjectClasses.h"
 #include "../../lib/CGeneralTextHandler.h"
@@ -29,7 +29,7 @@ CBattleConsole::~CBattleConsole()
 	texts.clear();
 }
 
-void CBattleConsole::show(SDL_Surface * to)
+void CBattleConsole::showAll(SDL_Surface * to)
 {
 	if(ingcAlter.size())
 	{
@@ -108,6 +108,9 @@ void CBattleConsole::scrollDown(ui32 by)
 	if(lastShown + by < texts.size())
 		lastShown += by;
 }
+
+CBattleConsole::CBattleConsole() : lastShown(-1), alterTxt(""), whoSetAlter(0)
+{}
 
 void CBattleHero::show(SDL_Surface * to)
 {
@@ -495,13 +498,13 @@ Point CClickableHex::getXYUnitAnim(const int & hexNum, const bool & attacker, co
 		switch(stack->position)
 		{
 		case -2: //keep
-			ret = graphics->wallPositions[cbi->siegeH->town->town->typeID][17];
+			ret = cbi->siegeH->town->town->clientInfo.siegePositions[18];
 			break;
 		case -3: //lower turret
-			ret = graphics->wallPositions[cbi->siegeH->town->town->typeID][18];
+			ret = cbi->siegeH->town->town->clientInfo.siegePositions[19];
 			break;
 		case -4: //upper turret
-			ret = graphics->wallPositions[cbi->siegeH->town->town->typeID][19];
+			ret = cbi->siegeH->town->town->clientInfo.siegePositions[20];
 			break;	
 		}
 	}

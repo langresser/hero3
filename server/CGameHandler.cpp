@@ -43,7 +43,7 @@
 #ifndef _MSC_VER
 #include <boost/thread/xtime.hpp>
 #endif
-#include <boost/random/linear_congruential.hpp>
+#include <boost/random/binomial_distribution.hpp>
 #include <boost/range/algorithm/random_shuffle.hpp>
 extern bool end2;
 #ifdef min
@@ -105,7 +105,7 @@ static void giveExp(BattleResult &r)
 	}
 }
 
-PlayerStatus PlayerStatuses::operator[](ui8 player)
+PlayerStatus PlayerStatuses::operator[](TPlayerColor player)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -117,13 +117,13 @@ PlayerStatus PlayerStatuses::operator[](ui8 player)
 		throw std::runtime_error("No such player!");
 	}
 }
-void PlayerStatuses::addPlayer(ui8 player)
+void PlayerStatuses::addPlayer(TPlayerColor player)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	players[player];
 }
 
-int PlayerStatuses::getQueriesCount(ui8 player)
+int PlayerStatuses::getQueriesCount(TPlayerColor player)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -136,7 +136,7 @@ int PlayerStatuses::getQueriesCount(ui8 player)
 	}
 }
 
-bool PlayerStatuses::checkFlag(ui8 player, bool PlayerStatus::*flag)
+bool PlayerStatuses::checkFlag(TPlayerColor player, bool PlayerStatus::*flag)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -148,7 +148,7 @@ bool PlayerStatuses::checkFlag(ui8 player, bool PlayerStatus::*flag)
 		throw std::runtime_error("No such player!");
 	}
 }
-void PlayerStatuses::setFlag(ui8 player, bool PlayerStatus::*flag, bool val)
+void PlayerStatuses::setFlag(TPlayerColor player, bool PlayerStatus::*flag, bool val)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -161,7 +161,7 @@ void PlayerStatuses::setFlag(ui8 player, bool PlayerStatus::*flag, bool val)
 	}
 	cv.notify_all();
 }
-void PlayerStatuses::addQuery(ui8 player, ui32 id)
+void PlayerStatuses::addQuery(TPlayerColor player, ui32 id)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -174,7 +174,7 @@ void PlayerStatuses::addQuery(ui8 player, ui32 id)
 	}
 	cv.notify_all();
 }
-void PlayerStatuses::removeQuery(ui8 player, ui32 id)
+void PlayerStatuses::removeQuery(TPlayerColor player, ui32 id)
 {
 	boost::unique_lock<boost::mutex> l(mx);
 	if(players.find(player) != players.end())
@@ -541,7 +541,7 @@ void CGameHandler::endBattle(int3 tile, const CGHeroInstance *hero1, const CGHer
 				MoveArtifact ma;
 				ma.src = ArtifactLocation (loserHero, artSlot.first);
 				const CArtifactInstance * art =  ma.src.getArt();
-				if (art && !art->artType->isBig() && art->id != 0) // don't move war machines or locked arts (spellbook)
+				if (art && !art->artType->isBig() && art->artType->id != 0) // don't move war machines or locked arts (spellbook)
 				{
 					arts.push_back (art->artType->id);
 					ma.dst = ArtifactLocation (winnerHero, art->firstAvailableSlot(winnerHero));
@@ -1072,7 +1072,7 @@ void CGameHandler::init(StartInfo *si)
 	gs->init(si);
 	tlog0 << "Gamestate initialized!" << std::endl;
 
-	for(std::map<ui8,PlayerState>::iterator i = gs->players.begin(); i != gs->players.end(); i++)
+	for(auto i = gs->players.begin(); i != gs->players.end(); i++)
 		states.addPlayer(i->first);
 }
 
@@ -1188,14 +1188,14 @@ void CGameHandler::newTurn()
 
 	bmap<ui32, ConstTransitivePtr<CGHeroInstance> > pool = gs->hpool.heroesPool;
 
-	for ( std::map<ui8, PlayerState>::iterator i=gs->players.begin() ; i!=gs->players.end();i++)
+	for ( auto i=gs->players.begin() ; i!=gs->players.end();i++)
 	{
 		if(i->first == 255)
 			continue;
 		else if(i->first >= GameConstants::PLAYER_LIMIT)
 			assert(0); //illegal player number!
 
-		std::pair<ui8,si32> playerGold(i->first,i->second.resources[Res::GOLD]);
+		std::pair<TPlayerColor,si32> playerGold(i->first,i->second.resources[Res::GOLD]);
 		hadGold.insert(playerGold);
 
 		if(newWeek) //new heroes in tavern
@@ -1326,19 +1326,21 @@ void CGameHandler::newTurn()
 		{
 			// Skyship, probably easier to handle same as Veil of darkness
 			//do it every new day after veils apply
-			FoWChange fw;
-			fw.mode = 1;
-			fw.player = player;
+			if (player != GameConstants::NEUTRAL_PLAYER) //do not reveal fow for neutral player
+			{
+				FoWChange fw;
+				fw.mode = 1;
+				fw.player = player;
+				// find all hidden tiles
+				auto & fow = gs->getPlayerTeam(player)->fogOfWarMap;
+				for (size_t i=0; i<fow.size(); i++)
+					for (size_t j=0; j<fow[i].size(); j++)
+						for (size_t k=0; k<fow[i][j].size(); k++)
+							if (!fow[i][j][k])
+								fw.tiles.insert(int3(i,j,k));
 
-			// find all hidden tiles
-			auto & fow = gs->getPlayerTeam(player)->fogOfWarMap;
-			for (size_t i=0; i<fow.size(); i++)
-				for (size_t j=0; j<fow[i].size(); j++)
-					for (size_t k=0; k<fow[i][j].size(); k++)
-						if (!fow[i][j][k])
-							fw.tiles.insert(int3(i,j,k));
-
-			sendAndApply (&fw);
+				sendAndApply (&fw);
+			}
 		}
 		if (t->hasBonusOfType (Bonus::DARKNESS))
 		{
@@ -1403,7 +1405,7 @@ void CGameHandler::newTurn()
 						iw.text.addReplacement(MetaString::ARRAY_TXT, 43 + rand()%15);
 					}
 			}
-			for (std::map<ui8, PlayerState>::iterator i=gs->players.begin() ; i!=gs->players.end(); i++)
+			for (auto i=gs->players.begin() ; i!=gs->players.end(); i++)
 			{
 				iw.player = i->first;
 				sendAndApply(&iw);
@@ -1425,7 +1427,7 @@ void CGameHandler::newTurn()
 	//warn players without town
 	if(gs->day)
 	{
-		for (std::map<ui8, PlayerState>::iterator i=gs->players.begin() ; i!=gs->players.end();i++)
+		for (auto i=gs->players.cbegin() ; i!=gs->players.cend();i++)
 		{
 			if(i->second.status || i->second.towns.size() || i->second.color >= GameConstants::PLAYER_LIMIT)
 				continue;
@@ -1460,7 +1462,7 @@ void CGameHandler::run(bool resume)
 	BOOST_FOREACH(CConnection *cc, conns)
 	{//init conn.
 		ui32 quantity;
-		ui8 pom;
+		TPlayerColor pom;
 		//ui32 seed;
 		if(!resume)
 		{
@@ -1480,6 +1482,10 @@ void CGameHandler::run(bool resume)
 			}
 		}
 		tlog0 << std::endl;
+
+		cc->addStdVecItems(gs);
+		cc->enableStackSendingByID();
+		cc->disableSmartPointerSerialization();
 	}
 
 	for(std::set<CConnection*>::iterator i = conns.begin(); i!=conns.end();i++)
@@ -1503,7 +1509,7 @@ void CGameHandler::run(bool resume)
 		if(!resume)
 			newTurn();
 
-		std::map<ui8,PlayerState>::iterator i;
+		std::map<TPlayerColor,PlayerState>::iterator i;
 		if(!resume)
 			i = gs->players.begin();
 		else
@@ -2466,7 +2472,7 @@ bool CGameHandler::buildStructure( si32 tid, si32 bid, bool force /*=false*/ )
 		ssi.creatures[level].second.push_back(crea->idNumber);
 		sendAndApply(&ssi);
 	}
-	else if ( t->subID == ETownType::DUNGEON && bid == EBuilding::MANA_VORTEX )
+	else if ( t->subID == ETownType::DUNGEON && bid == EBuilding::PORTAL_OF_SUMMON )
 	{
 		setPortalDwelling(t);
 	}
@@ -2500,7 +2506,7 @@ bool CGameHandler::buildStructure( si32 tid, si32 bid, bool force /*=false*/ )
 	FoWChange fw;
 	fw.player = t->tempOwner;
 	fw.mode = 1;
-	getTilesInRange(fw.tiles,t->pos,t->getSightRadious(),t->tempOwner,1);
+	t->getSightTiles(fw.tiles);
 	sendAndApply(&fw);
 
 	if (!force)
@@ -2658,14 +2664,13 @@ bool CGameHandler::upgradeCreature( ui32 objid, ui8 pos, ui32 upgID )
 	const PlayerState *p = getPlayer(player);
 	int crQuantity = obj->stacks[pos]->count;
 	int newIDpos= vstd::find_pos(ui.newID, upgID);//get position of new id in UpgradeInfo
-	TResources totalCost = ui.cost[newIDpos] * crQuantity;
 
 	//check if upgrade is possible
 	if( (ui.oldID<0 || newIDpos == -1 ) && complain("That upgrade is not possible!"))
 	{
 		return false;
 	}
-
+	TResources totalCost = ui.cost[newIDpos] * crQuantity;
 
 	//check if player has enough resources
 	if(!p->resources.canAfford(totalCost))
@@ -2967,7 +2972,7 @@ bool CGameHandler::buyArtifact(const IMarket *m, const CGHeroInstance *h, int ri
 	return true;
 }
 
-bool CGameHandler::sellArtifact(const IMarket *m, const CGHeroInstance *h, TArtifactID aid, int rid)
+bool CGameHandler::sellArtifact( const IMarket *m, const CGHeroInstance *h, TArtifactInstanceID aid, TResource rid )
 {
 	const CArtifactInstance *art = h->getArtByInstanceId(aid);
 	if(!art)
@@ -3166,7 +3171,11 @@ bool CGameHandler::hireHero(const CGObjectInstance *obj, ui8 hid, ui8 player)
 
 
 	const CGHeroInstance *nh = p->availableHeroes[hid];
-	assert(nh);
+	if (!nh)
+	{
+		complain ("Hero is not available for hiring!");
+		return false;
+	}
 
 	HeroRecruited hr;
 	hr.tid = obj->id;
@@ -3179,7 +3188,9 @@ bool CGameHandler::hireHero(const CGObjectInstance *obj, ui8 hid, ui8 player)
 	bmap<ui32, ConstTransitivePtr<CGHeroInstance> > pool = gs->unusedHeroesFromPool();
 
 	const CGHeroInstance *theOtherHero = p->availableHeroes[!hid];
-	const CGHeroInstance *newHero = gs->hpool.pickHeroFor(false, player, getNativeTown(player), pool, theOtherHero->type->heroClass);
+	const CGHeroInstance *newHero = NULL;
+	if (theOtherHero) //on XXL maps all heroes can be imprisoned :(
+		newHero = gs->hpool.pickHeroFor(false, player, getNativeTown(player), pool, theOtherHero->type->heroClass);
 
 	SetAvailableHeroes sah;
 	sah.player = player;
@@ -3398,6 +3409,7 @@ bool CGameHandler::makeBattleAction( BattleAction &ba )
 			}
 
 			//attack
+			if(stack->alive()) //move can cause death, eg. by walking into the moat
 			{
 				BattleAttack bat;
 				prepareAttack(bat, stack, stackAtEnd, distance, ba.additionalInfo);
@@ -3803,9 +3815,9 @@ void CGameHandler::playerMessage( ui8 player, const std::string &message )
 		SetResources sr;
 		sr.player = player;
 		sr.res = gs->getPlayer(player)->resources;
-		for(int i=0;i<7;i++)
+		for(int i=0;i<Res::GOLD;i++)
 			sr.res[i] += 100;
-		sr.res[6] += 19900;
+		sr.res[Res::GOLD] += 100000; //100k
 		sendAndApply(&sr);
 	}
 	else if(message == "vcmieagles") //reveal FoW
@@ -5005,7 +5017,7 @@ void CGameHandler::checkLossVictory( ui8 player )
 	{
 		iw.text.localStrings.front().second++; //message about losing because enemy won first is just after victory message
 
-		for (bmap<ui8,PlayerState>::const_iterator i = gs->players.begin(); i!=gs->players.end(); i++)
+		for (auto i = gs->players.cbegin(); i!=gs->players.cend(); i++)
 		{
 			if(i->first < GameConstants::PLAYER_LIMIT && i->first != player)//FIXME: skip already eliminated players?
 			{
@@ -5293,18 +5305,18 @@ void CGameHandler::handleAfterAttackCasting( const BattleAttack & bat )
 	if (attacker->hasBonusOfType(Bonus::DEATH_STARE)) // spell id 79
 	{
 		// mechanics of Death Stare as in H3:
-		// each gorgon have 10% chance to kill (counted separately in H3) -> poisson distribution
-		// maximum amount that can be killed is (1 + gorgons / 5 ), rounded up
+		// each gorgon have 10% chance to kill (counted separately in H3) -> binomial distribution
+		// maximum amount that can be killed is ( gorgons_count / 10 ), rounded up
 
-		int staredCreatures = 0;
-		double mean = double(attacker->count * attacker->valOfBonuses(Bonus::DEATH_STARE, 0)) / 100;
+		double chanceToKill = double(attacker->count * attacker->valOfBonuses(Bonus::DEATH_STARE, 0)) / 100;
+		vstd::amin(chanceToKill, 1); //cap at 100%
 
-		boost::poisson_distribution<> p(mean);
+		boost::binomial_distribution<> distr(attacker->count, chanceToKill);
 		boost::mt19937 rng(rand());
-		boost::variate_generator<boost::mt19937&, boost::poisson_distribution<> > dice (rng, p);
-		staredCreatures += dice();
+		boost::variate_generator<boost::mt19937&, boost::binomial_distribution<> > dice (rng, distr);
+		int staredCreatures = dice();
 
-		int maxToKill = 1 + (attacker->count + 4) / 5;
+		int maxToKill = (attacker->count * chanceToKill + 99) / 100;
 		vstd::amin(staredCreatures, maxToKill);
 
 		staredCreatures += attacker->type->level * attacker->valOfBonuses(Bonus::DEATH_STARE, 1);

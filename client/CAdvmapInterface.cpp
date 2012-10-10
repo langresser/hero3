@@ -11,7 +11,7 @@
 #include "CPlayerInterface.h"
 #include "UIFramework/SDL_Extensions.h"
 #include "CBitmapHandler.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "CSpellWindow.h"
 #include "Graphics.h"
 #include "CDefHandler.h"
@@ -599,7 +599,7 @@ void CAdvMapInt::activate()
 {
 	CIntObject::activate();
 	if (!(active & KEYBOARD))
-		activateKeys();
+		CIntObject::activate(KEYBOARD);
 
 	screenBuf = screen;
 	GH.statusbar = &statusbar;
@@ -1377,7 +1377,8 @@ void CAdvMapInt::tileHovered(const int3 &mapPos)
 				if (guardingCreature)
 				{
 					CCS->curh->changeGraphic(0, 5 + turns*6);
-				} else
+				} 
+				else
 				{
 					if(pnode->land)
 					{

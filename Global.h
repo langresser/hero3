@@ -148,6 +148,39 @@ public:
 	{
 		h & static_cast<std::map<KeyT, ValT> &>(*this);
 	}
+
+	bmap()
+	{}
+#if 0 // What is _Myt? gcc\clang does not have that
+	bmap(const typename std::map<KeyT, ValT>::_Myt& _Right)
+		: std::map<KeyT, ValT>(_Right)
+	{}
+#endif
+	explicit bmap(const typename std::map<KeyT, ValT>::key_compare& _Pred)
+		: std::map<KeyT, ValT>(_Pred)
+	{}
+
+	bmap(const typename std::map<KeyT, ValT>::key_compare& _Pred, const typename std::map<KeyT, ValT>::allocator_type& _Al)
+		: std::map<KeyT, ValT>(_Pred, _Al)
+	{}
+
+	template<class _Iter>
+	bmap(_Iter _First, _Iter _Last)
+		: std::map<KeyT, ValT>(_First, _Last)
+	{}
+
+	template<class _Iter>
+	bmap(_Iter _First, _Iter _Last,
+		const typename std::map<KeyT, ValT>::key_compare& _Pred)
+		: std::map<KeyT, ValT>(_First, _Last, _Pred)
+	{}
+
+	template<class _Iter>
+	bmap(_Iter _First, _Iter _Last,
+		const typename std::map<KeyT, ValT>::key_compare& _Pred, const typename std::map<KeyT, ValT>::allocator_type& _Al)
+		: std::map<KeyT, ValT>(_First, _Last, _Pred, _Al)
+	{}
+
 };
 
 namespace vstd
@@ -345,7 +378,6 @@ namespace vstd
 		vec.erase(boost::remove_if(vec, pred),vec.end());
 	}
 
-	//set has its own order, so remove_if won't work. TODO - reuse for map
 	template<typename Elem, typename Predicate>
 	void erase_if(std::set<Elem> &setContainer, Predicate pred)
 	{
@@ -356,6 +388,20 @@ namespace vstd
 			auto tmpItr = itr++;
 			if(pred(*tmpItr))
 				setContainer.erase(tmpItr);
+		}
+	}
+
+	//works for map and bmap, maybe something else
+	template<typename Key, typename Val, typename Predicate>
+	void erase_if(std::map<Key, Val> &container, Predicate pred)
+	{
+		auto itr = container.begin();
+		auto endItr = container.end(); 
+		while(itr != endItr)
+		{
+			auto tmpItr = itr++;
+			if(pred(*tmpItr))
+				container.erase(tmpItr);
 		}
 	}
 

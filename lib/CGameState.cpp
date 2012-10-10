@@ -383,13 +383,13 @@ static CGObjectInstance * createObject(int id, int subid, int3 pos, int owner)
 	return nobj;
 }
 
-CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, int player, const CTown *town, bmap<ui32, ConstTransitivePtr<CGHeroInstance> > &available, const CHeroClass *bannedClass /*= NULL*/) const
+CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, TPlayerColor player, const CTown *town, bmap<ui32, ConstTransitivePtr<CGHeroInstance> > &available, const CHeroClass *bannedClass /*= NULL*/) const
 {
 	CGHeroInstance *ret = NULL;
 
-	if(player<0 || player>=GameConstants::PLAYER_LIMIT)
+	if(player>=GameConstants::PLAYER_LIMIT)
 	{
-		tlog1 << "Cannot pick hero for " << town->Name() << ". Wrong owner!\n";
+		tlog1 << "Cannot pick hero for " << town->typeID << ". Wrong owner!\n";
 		return NULL;
 	}
 
@@ -397,7 +397,7 @@ CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, int player, co
 
 	if(native)
 	{
-		for(bmap<ui32, ConstTransitivePtr<CGHeroInstance> >::iterator i=available.begin(); i!=available.end(); i++)
+		for(auto i=available.begin(); i!=available.end(); i++)
 		{
 			if(pavailable.find(i->first)->second & 1<<player
 				&& i->second->type->heroType/2 == town->typeID)
@@ -407,7 +407,7 @@ CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, int player, co
 		}
 		if(!pool.size())
 		{
-			tlog1 << "Cannot pick native hero for " << player << ". Picking any...\n";
+			tlog1 << "Cannot pick native hero for " << int(player) << ". Picking any...\n";
 			return pickHeroFor(false, player, town, available);
 		}
 		else
@@ -419,7 +419,7 @@ CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, int player, co
 	{
 		int sum=0, r;
 
-		for(bmap<ui32, ConstTransitivePtr<CGHeroInstance> >::iterator i=available.begin(); i!=available.end(); i++)
+		for(auto i=available.begin(); i!=available.end(); i++)
 		{
 			if ((!bannedClass && (pavailable.find(i->first)->second & (1<<player))) ||
 				i->second->type->heroClass != bannedClass)
@@ -428,10 +428,10 @@ CGHeroInstance * CGameState::HeroesPool::pickHeroFor(bool native, int player, co
 				sum += i->second->type->heroClass->selectionProbability[town->typeID]; //total weight
 			}
 		}
-		if(!pool.size())
+		if(!pool.size() || sum == 0)
 		{
 			tlog1 << "There are no heroes available for player " << player<<"!\n";
-			return NULL;
+			return nullptr;
 		}
 
 		r = rand()%sum;
@@ -471,30 +471,41 @@ int CGameState::pickHero(int owner)
 	if(scenarioOps->mode == StartInfo::CAMPAIGN)
 	{
 		auto bonus = scenarioOps->campState->getBonusForCurrentMap();
-		if(bonus.type == CScenarioTravel::STravelBonus::HERO && owner == bonus.info1)
+		if(bonus.is_initialized() && bonus->type == CScenarioTravel::STravelBonus::HERO && owner == bonus->info1)
 		{
-			if(bonus.info2 != 0xffff && !map->getHero(bonus.info2)) //not random and not taken
+			if(bonus->info2 != 0xffff && !map->getHero(bonus->info2)) //not random and not taken
 			{
-				return bonus.info2;
+				return bonus->info2;
 			}
 		}
 	}
 
-	int i=0;
+	//list of heroes for this faction
+	std::vector<si32> factionHeroes;
+	factionHeroes.reserve(GameConstants::HEROES_PER_TYPE*2);
 
-	do //try to find free hero of our faction
+	size_t firstHero = ps.castle*GameConstants::HEROES_PER_TYPE*2;
+	size_t lastHero  = std::min(firstHero + GameConstants::HEROES_PER_TYPE*2, VLC->heroh->heroes.size());
+
+	//generate list of heroes
+	for (si32 i=firstHero; i<lastHero; i++)
+		factionHeroes.push_back(i);
+	// we need random order to select hero
+	std::random_shuffle(factionHeroes.begin(), factionHeroes.end());
+
+	for (size_t i=0; i<factionHeroes.size(); i++)
 	{
-		i++;
-		h = ps.castle*GameConstants::HEROES_PER_TYPE*2+(ran()%(GameConstants::HEROES_PER_TYPE*2));//->scenarioOps->playerInfos[pru].hero = VLC->
-	} while( map->getHero(h)  &&  i<(GameConstants::HEROES_QUANTITY+18+1));
-	if(i>GameConstants::HEROES_QUANTITY+18) //probably no free heroes - there's no point in further search, we'll take first free
-	{
-		tlog3 << "Warning: cannot find free hero - trying to get first available..."<<std::endl;
-		for(int j=0; j<GameConstants::HEROES_QUANTITY; j++)
-			if(!map->getHero(j))
-				h=j;
+		if (!map->getHero(factionHeroes[i]))
+			return factionHeroes[i];
 	}
-	return h;
+
+	tlog3 << "Warning: cannot find free hero - trying to get first available..."<<std::endl;
+	for(int j=0; j<VLC->heroh->heroes.size(); j++)
+		if(!map->getHero(j))
+			return j;
+
+	assert(0); //currrent code can't handle this situation
+	return -1; // no available heroes at all
 }
 
 
@@ -625,7 +636,12 @@ std::pair<int,int> CGameState::pickObject (CGObjectInstance *obj)
 					result = std::pair<int,int>(17, iter.first);
 
 			if (result.first == -1)
+			{
 				tlog0 << "Error: failed to find creature for dwelling of "<< int(faction) << " of level " << int(level) << "\n";
+				auto iter = VLC->objh->cregens.begin();
+				std::advance(iter, ran() % VLC->objh->cregens.size() );
+				result = std::pair<int, int>(17, iter->first);
+			}
 
 			return result;
 		}
@@ -765,14 +781,17 @@ void CGameState::init(StartInfo * si)
 {
 	auto giveCampaignBonusToHero = [&](CGHeroInstance * hero)
 	{
-		const CScenarioTravel::STravelBonus & curBonus = scenarioOps->campState->getBonusForCurrentMap();
-		if(curBonus.isBonusForHero())
+		const boost::optional<CScenarioTravel::STravelBonus> & curBonus = scenarioOps->campState->getBonusForCurrentMap();
+		if(!curBonus)
+			return;
+
+		if(curBonus->isBonusForHero())
 		{
 			//apply bonus
-			switch (curBonus.type)
+			switch (curBonus->type)
 			{
 			case CScenarioTravel::STravelBonus::SPELL:
-				hero->spells.insert(curBonus.info2);
+				hero->spells.insert(curBonus->info2);
 				break;
 			case CScenarioTravel::STravelBonus::MONSTER:
 				{
@@ -780,24 +799,24 @@ void CGameState::init(StartInfo * si)
 					{
 						if(hero->slotEmpty(i))
 						{
-							hero->addToSlot(i, curBonus.info2, curBonus.info3);
+							hero->addToSlot(i, curBonus->info2, curBonus->info3);
 							break;
 						}
 					}
 				}
 				break;
 			case CScenarioTravel::STravelBonus::ARTIFACT:
-				gs->giveHeroArtifact(hero, curBonus.info2);
+				gs->giveHeroArtifact(hero, curBonus->info2);
 				break;
 			case CScenarioTravel::STravelBonus::SPELL_SCROLL:
 				{
-					CArtifactInstance * scroll = CArtifactInstance::createScroll(VLC->spellh->spells[curBonus.info2]);
+					CArtifactInstance * scroll = CArtifactInstance::createScroll(VLC->spellh->spells[curBonus->info2]);
 					scroll->putAt(ArtifactLocation(hero, scroll->firstAvailableSlot(hero)));
 				}
 				break;
 			case CScenarioTravel::STravelBonus::PRIMARY_SKILL:
 				{
-					const ui8* ptr = reinterpret_cast<const ui8*>(&curBonus.info2);
+					const ui8* ptr = reinterpret_cast<const ui8*>(&curBonus->info2);
 					for (int g=0; g<GameConstants::PRIMARY_SKILLS; ++g)
 					{
 						int val = ptr[g];
@@ -811,7 +830,7 @@ void CGameState::init(StartInfo * si)
 				}
 				break;
 			case CScenarioTravel::STravelBonus::SECONDARY_SKILL:
-				hero->setSecSkillLevel(static_cast<CGHeroInstance::SecondarySkill>(curBonus.info2), curBonus.info3, true);
+				hero->setSecSkillLevel(static_cast<CGHeroInstance::SecondarySkill>(curBonus->info2), curBonus->info3, true);
 				break;
 			}
 		}
@@ -928,7 +947,7 @@ void CGameState::init(StartInfo * si)
 
 	//picking random factions for players
 	tlog4 << "\tPicking random factions for players";
-	for(std::map<int, PlayerSettings>::iterator it = scenarioOps->playerInfos.begin();
+	for(auto it = scenarioOps->playerInfos.begin();
 		it != scenarioOps->playerInfos.end(); ++it)
 	{
 		if(it->second.castle==-1)
@@ -962,10 +981,10 @@ void CGameState::init(StartInfo * si)
 
 	/*********creating players entries in gs****************************************/
 	tlog4 << "\tCreating player entries in gs";
-	for(std::map<int, PlayerSettings>::iterator it = scenarioOps->playerInfos.begin();
+	for(auto it = scenarioOps->playerInfos.begin();
 		it != scenarioOps->playerInfos.end(); ++it)
 	{
-		std::pair<int,PlayerState> ins(it->first,PlayerState());
+		std::pair<TPlayerColor,PlayerState> ins(it->first,PlayerState());
 		ins.second.color=ins.first;
 		ins.second.human = it->second.human;
 		ins.second.team = map->players[ins.first].team;
@@ -976,98 +995,114 @@ void CGameState::init(StartInfo * si)
 
 	/*********give starting hero****************************************/
 	tlog4 << "\tGiving starting hero";
-	for(int i=0;i<GameConstants::PLAYER_LIMIT;i++)
 	{
-		const PlayerInfo &p = map->players[i];
-		bool campaignGiveHero = scenarioOps->playerInfos[i].human && scenarioOps->mode == StartInfo::CAMPAIGN &&
-			scenarioOps->campState->getBonusForCurrentMap().type == CScenarioTravel::STravelBonus::HERO;
-		bool generateHero = (p.generateHeroAtMainTown || campaignGiveHero) && p.hasMainTown;
-		if(generateHero && vstd::contains(scenarioOps->playerInfos, i))
+		bool campaignGiveHero = false;
+		if(scenarioOps->campState)
 		{
-			int3 hpos = p.posOfMainTown;
-			hpos.x+=1;
+			auto bonus = scenarioOps->campState->getBonusForCurrentMap();
+			if(bonus.is_initialized())
+			{
+				campaignGiveHero =  scenarioOps->mode == StartInfo::CAMPAIGN &&
+					bonus.get().type == CScenarioTravel::STravelBonus::HERO;
+			}
+		}
 
-			int h = pickHero(i);
-			if(scenarioOps->playerInfos[i].hero == -1)
-				scenarioOps->playerInfos[i].hero = h;
 
-			CGHeroInstance * nnn =  static_cast<CGHeroInstance*>(createObject(Obj::HERO,h,hpos,i));
-			nnn->id = map->objects.size();
-			nnn->initHero();
-			map->heroes.push_back(nnn);
-			map->objects.push_back(nnn);
-			map->addBlockVisTiles(nnn);
+		for(auto it = scenarioOps->playerInfos.begin(); it != scenarioOps->playerInfos.end(); ++it)
+		{
+			const PlayerInfo &p = map->players[it->first];
+			bool generateHero = (p.generateHeroAtMainTown || (it->second.human && campaignGiveHero)) && p.hasMainTown;
+			if(generateHero && vstd::contains(scenarioOps->playerInfos, it->first))
+			{
+				int3 hpos = p.posOfMainTown;
+				hpos.x+=1;
+
+				int h = pickHero(it->first);
+				if(it->second.hero == -1)
+					it->second.hero = h;
+
+				CGHeroInstance * nnn =  static_cast<CGHeroInstance*>(createObject(Obj::HERO,h,hpos,it->first));
+				nnn->id = map->objects.size();
+				nnn->initHero();
+				map->heroes.push_back(nnn);
+				map->objects.push_back(nnn);
+				map->addBlockVisTiles(nnn);
+			}
 		}
 	}
+	
 
 	/*************************replace hero placeholders*****************************/
 	tlog4 << "\tReplacing hero placeholders";
 	if (scenarioOps->campState)
 	{
 		auto campaign = scenarioOps->campState;
-		CScenarioTravel::STravelBonus bonus = campaign->getBonusForCurrentMap();
+		auto bonus = campaign->getBonusForCurrentMap();
 
-
-		std::vector<CGHeroInstance *> Xheroes;
-		if (bonus.type == CScenarioTravel::STravelBonus::PLAYER_PREV_SCENARIO)
+		if(bonus.is_initialized())
 		{
-			Xheroes = campaign->camp->scenarios[bonus.info2].crossoverHeroes;
-		}
-
-		//selecting heroes by type
-		for(int g=0; g<map->objects.size(); ++g)
-		{
-			CGObjectInstance * obj = map->objects[g];
-			if (obj->ID != Obj::HERO_PLACEHOLDER)
+			std::vector<CGHeroInstance *> Xheroes;
+			if (bonus->type == CScenarioTravel::STravelBonus::PLAYER_PREV_SCENARIO)
 			{
-				continue;
+				Xheroes = campaign->camp->scenarios[bonus->info2].crossoverHeroes;
 			}
-			CGHeroPlaceholder * hp = static_cast<CGHeroPlaceholder*>(obj);
 
-			if(hp->subID != 0xFF) //select by type
+			//selecting heroes by type
+			for(int g=0; g<map->objects.size(); ++g)
 			{
-				bool found = false;
-				BOOST_FOREACH(CGHeroInstance * ghi, Xheroes)
+				CGObjectInstance * obj = map->objects[g];
+				if (obj->ID != Obj::HERO_PLACEHOLDER)
 				{
-					if (ghi->subID == hp->subID)
+					continue;
+				}
+				CGHeroPlaceholder * hp = static_cast<CGHeroPlaceholder*>(obj);
+
+				if(hp->subID != 0xFF) //select by type
+				{
+					bool found = false;
+					BOOST_FOREACH(CGHeroInstance * ghi, Xheroes)
 					{
-						found = true;
-						replaceHero(g, ghi);
-						Xheroes -= ghi;
-						break;
+						if (ghi->subID == hp->subID)
+						{
+							found = true;
+							replaceHero(g, ghi);
+							Xheroes -= ghi;
+							break;
+						}
+					}
+					if (!found)
+					{
+						//TODO: create new hero of this type
 					}
 				}
-				if (!found)
-				{
-					//TODO: create new hero of this type
-				}
 			}
-		}
 
-		//selecting heroes by power
+			//selecting heroes by power
 
-		std::sort(Xheroes.begin(), Xheroes.end(), [](const CGHeroInstance * a, const CGHeroInstance * b)
+			std::sort(Xheroes.begin(), Xheroes.end(), [](const CGHeroInstance * a, const CGHeroInstance * b)
 			{
 				return a->getHeroStrength() > b->getHeroStrength();
 			}); //sort, descending strength
-		for(int g=0; g<map->objects.size(); ++g)
-		{
-			CGObjectInstance * obj = map->objects[g];
-			if (obj->ID != Obj::HERO_PLACEHOLDER)
+			for(int g=0; g<map->objects.size(); ++g)
 			{
-				continue;
-			}
-			CGHeroPlaceholder * hp = static_cast<CGHeroPlaceholder*>(obj);
+				CGObjectInstance * obj = map->objects[g];
+				if (obj->ID != Obj::HERO_PLACEHOLDER)
+				{
+					continue;
+				}
+				CGHeroPlaceholder * hp = static_cast<CGHeroPlaceholder*>(obj);
 
-			if (hp->subID == 0xFF) //select by power
-			{
-				if(Xheroes.size() > hp->power - 1)
-					replaceHero(g, Xheroes[hp->power - 1]);
-				else
-					tlog2 << "Warning, to hero to replace!\n";
-				//we don't have to remove hero from Xheroes because it would destroy the order and duplicates shouldn't happen
+				if (hp->subID == 0xFF) //select by power
+				{
+					if(Xheroes.size() > hp->power - 1)
+						replaceHero(g, Xheroes[hp->power - 1]);
+					else
+						tlog2 << "Warning, to hero to replace!\n";
+					//we don't have to remove hero from Xheroes because it would destroy the order and duplicates shouldn't happen
+				}
 			}
 		}
+		
 	}
 
 	/******************RESOURCES****************************************************/
@@ -1079,7 +1114,7 @@ void CGameState::init(StartInfo * si)
 	TResources startresAI(level["ai"]);
 	TResources startresHuman(level["human"]);
 
-	for (std::map<ui8,PlayerState>::iterator i = players.begin(); i!=players.end(); i++)
+	for (auto i = players.begin(); i!=players.end(); i++)
 	{
 		PlayerState &p = i->second;
 
@@ -1092,17 +1127,17 @@ void CGameState::init(StartInfo * si)
 	//give start resource bonus in case of campaign
 	if (scenarioOps->mode == StartInfo::CAMPAIGN)
 	{
-		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
-		if(chosenBonus.type == CScenarioTravel::STravelBonus::RESOURCE)
+		auto chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
+		if(chosenBonus.is_initialized() && chosenBonus->type == CScenarioTravel::STravelBonus::RESOURCE)
 		{
 			std::vector<const PlayerSettings *> people = getHumanPlayerInfo(); //players we will give resource bonus
 			BOOST_FOREACH(const PlayerSettings *ps, people)
 			{
 				std::vector<int> res; //resources we will give
-				switch (chosenBonus.info1)
+				switch (chosenBonus->info1)
 				{
 				case 0: case 1: case 2: case 3: case 4: case 5: case 6:
-					res.push_back(chosenBonus.info1);
+					res.push_back(chosenBonus->info1);
 					break;
 				case 0xFD: //wood+ore
 					res.push_back(Res::WOOD); res.push_back(Res::ORE);
@@ -1117,7 +1152,7 @@ void CGameState::init(StartInfo * si)
 				//increasing resource quantity
 				for (int n=0; n<res.size(); ++n)
 				{
-					players[ps->color].resources[res[n]] += chosenBonus.info2;
+					players[ps->color].resources[res[n]] += chosenBonus->info2;
 				}
 			}
 		}
@@ -1176,13 +1211,12 @@ void CGameState::init(StartInfo * si)
 
 	if (scenarioOps->mode == StartInfo::CAMPAIGN) //give campaign bonuses for specific / best hero
 	{
-
-		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
-		if (chosenBonus.isBonusForHero() && chosenBonus.info1 != 0xFFFE) //exclude generated heroes
+		auto chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
+		if (chosenBonus.is_initialized() && chosenBonus->isBonusForHero() && chosenBonus->info1 != 0xFFFE) //exclude generated heroes
 		{
 			//find human player
 			int humanPlayer=GameConstants::NEUTRAL_PLAYER;
-			for (std::map<ui8, PlayerState>::iterator it=players.begin(); it != players.end(); ++it)
+			for (auto it=players.begin(); it != players.end(); ++it)
 			{
 				if(it->second.human)
 				{
@@ -1194,7 +1228,7 @@ void CGameState::init(StartInfo * si)
 
 			std::vector<ConstTransitivePtr<CGHeroInstance> > & heroes = players[humanPlayer].heroes;
 
-			if (chosenBonus.info1 == 0xFFFD) //most powerful
+			if (chosenBonus->info1 == 0xFFFD) //most powerful
 			{
 				int maxB = -1;
 				for (int b=0; b<heroes.size(); ++b)
@@ -1213,7 +1247,7 @@ void CGameState::init(StartInfo * si)
 			{
 				for (int b=0; b<heroes.size(); ++b)
 				{
-					if (heroes[b]->subID == chosenBonus.info1)
+					if (heroes[b]->subID == chosenBonus->info1)
 					{
 						giveCampaignBonusToHero(heroes[b]);
 						break;
@@ -1225,7 +1259,7 @@ void CGameState::init(StartInfo * si)
 
 	/*************************FOG**OF**WAR******************************************/
 	tlog4 << "\tFog of war";
-	for(std::map<ui8, TeamState>::iterator k=teams.begin(); k!=teams.end(); ++k)
+	for(auto k=teams.begin(); k!=teams.end(); ++k)
 	{
 		k->second.fogOfWarMap.resize(map->width);
 		for(int g=0; g<map->width; ++g)
@@ -1254,7 +1288,7 @@ void CGameState::init(StartInfo * si)
 	}
 
 	tlog4 << "\tStarting bonuses";
-	for(std::map<ui8, PlayerState>::iterator k=players.begin(); k!=players.end(); ++k)
+	for(auto k=players.begin(); k!=players.end(); ++k)
 	{
 		//starting bonus
 		if(scenarioOps->playerInfos[k->first].bonus==PlayerSettings::brandom)
@@ -1305,7 +1339,7 @@ void CGameState::init(StartInfo * si)
 		if(!vti->town)
 			vti->town = &VLC->townh->towns[vti->subID];
 		if (vti->name.length()==0) // if town hasn't name we draw it
-			vti->name = vti->town->Names()[ran()%vti->town->Names().size()];
+			vti->name = vti->town->names[ran()%vti->town->names.size()];
 
 		//init buildings
 		if(vti->builtBuildings.find(-50)!=vti->builtBuildings.end()) //give standard set of buildings
@@ -1393,9 +1427,9 @@ void CGameState::init(StartInfo * si)
 	//campaign bonuses for towns
 	if (scenarioOps->mode == StartInfo::CAMPAIGN)
 	{
-		CScenarioTravel::STravelBonus chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
+		auto chosenBonus = scenarioOps->campState->getBonusForCurrentMap();
 
-		if (chosenBonus.type == CScenarioTravel::STravelBonus::BUILDING)
+		if (chosenBonus.is_initialized() && chosenBonus->type == CScenarioTravel::STravelBonus::BUILDING)
 		{
 			for (int g=0; g<map->towns.size(); ++g)
 			{
@@ -1408,7 +1442,7 @@ void CGameState::init(StartInfo * si)
 						map->towns[g]->pos == pi.posOfMainTown + int3(2, 0, 0))
 					{
 						map->towns[g]->builtBuildings.insert(
-							CBuildingHandler::campToERMU(chosenBonus.info1, map->towns[g]->town->typeID, map->towns[g]->builtBuildings));
+							CBuildingHandler::campToERMU(chosenBonus->info1, map->towns[g]->town->typeID, map->towns[g]->builtBuildings));
 						break;
 					}
 				}
@@ -1441,7 +1475,7 @@ void CGameState::init(StartInfo * si)
 
 	buildBonusSystemTree();
 
-	for(std::map<ui8, PlayerState>::iterator k=players.begin(); k!=players.end(); ++k)
+	for(auto k=players.begin(); k!=players.end(); ++k)
 	{
 		if(k->first==255)
 			continue;
@@ -1736,27 +1770,34 @@ int CGameState::getPlayerRelations( ui8 color1, ui8 color2 )
 
 void CGameState::loadTownDInfos()
 {
-    int i;
-	const JsonNode config(ResourceID("config/towns_defs.json"));
+	assert(!VLC->dobjinfo->gobjs[Obj::TOWN].empty()); //make sure that at least some def info was found
 
-    assert(config["town_defnames"].Vector().size() == GameConstants::F_NUMBER);
+	const CGDefInfo * baseInfo = VLC->dobjinfo->gobjs[Obj::TOWN].begin()->second;
+	auto & townInfos = VLC->dobjinfo->gobjs[Obj::TOWN];
 
-    i = 0;
-	BOOST_FOREACH(const JsonNode &t, config["town_defnames"].Vector())
+
+	BOOST_FOREACH(auto & town, VLC->townh->towns)
 	{
-		villages[i] = new CGDefInfo(*VLC->dobjinfo->castles[i]);
-        villages[i]->name = t["village"].String();
-		map->defy.push_back(villages[i]);
+		if (!vstd::contains(VLC->dobjinfo->gobjs[Obj::TOWN], town.first)) // no obj info for this town type
+		{
+			CGDefInfo * info = new CGDefInfo(*baseInfo);
+			info->subid = town.first;
 
-		forts[i] = VLC->dobjinfo->castles[i];
-		map->defy.push_back(forts[i]);
+			townInfos[town.first] = info;
+		}
+		forts[town.first] = townInfos[town.first];
+		townInfos[town.first]->name = town.second.clientInfo.advMapCastle;
 
-		capitols[i] = new CGDefInfo(*VLC->dobjinfo->castles[i]);
-        capitols[i]->name = t["capitol"].String();
-		map->defy.push_back(capitols[i]);
+		villages[town.first] = new CGDefInfo(*townInfos[town.first]);
+		villages[town.first]->name = town.second.clientInfo.advMapVillage;
 
-		++i;
-    }
+		capitols[town.first] = new CGDefInfo(*townInfos[town.first]);
+		capitols[town.first]->name = town.second.clientInfo.advMapCapitol;
+
+		map->defy.push_back(villages[town.first]);
+		map->defy.push_back(forts[town.first]);
+		map->defy.push_back(capitols[town.first]);
+	}
 }
 
 void CGameState::getNeighbours(const TerrainTile &srct, int3 tile, std::vector<int3> &vec, const boost::logic::tribool &onLand, bool limitCoastSailing)
@@ -2149,8 +2190,8 @@ ui8 CGameState::checkForStandardWin() const
 {
 	//std victory condition is:
 	//all enemies lost
-	ui8 supposedWinner = 255, winnerTeam = 255;
-	for(std::map<ui8,PlayerState>::const_iterator i = players.begin(); i != players.end(); i++)
+	TPlayerColor supposedWinner = 255, winnerTeam = 255;
+	for(auto i = players.begin(); i != players.end(); i++)
 	{
 		if(i->second.status == PlayerState::INGAME && i->first < GameConstants::PLAYER_LIMIT)
 		{
@@ -2180,15 +2221,15 @@ bool CGameState::checkForStandardLoss( ui8 player ) const
 
 struct statsHLP
 {
-	typedef std::pair< ui8, si64 > TStat;
+	typedef std::pair< TPlayerColor, si64 > TStat;
 	//converts [<player's color, value>] to vec[place] -> platers
-	static std::vector< std::vector< ui8 > > getRank( std::vector<TStat> stats )
+	static std::vector< std::vector< TPlayerColor > > getRank( std::vector<TStat> stats )
 	{
 		std::sort(stats.begin(), stats.end(), statsHLP());
 
 		//put first element
-		std::vector< std::vector<ui8> > ret;
-		std::vector<ui8> tmp;
+		std::vector< std::vector<TPlayerColor> > ret;
+		std::vector<TPlayerColor> tmp;
 		tmp.push_back( stats[0].first );
 		ret.push_back( tmp );
 
@@ -2202,7 +2243,7 @@ struct statsHLP
 			else
 			{
 				//create next occupied rank
-				std::vector<ui8> tmp;
+				std::vector<TPlayerColor> tmp;
 				tmp.push_back(stats[g].first);
 				ret.push_back(tmp);
 			}
@@ -2249,8 +2290,8 @@ void CGameState::obtainPlayersStats(SThievesGuildInfo & tgi, int level)
 {
 #define FILL_FIELD(FIELD, VAL_GETTER) \
 	{ \
-		std::vector< std::pair< ui8, si64 > > stats; \
-		for(std::map<ui8, PlayerState>::const_iterator g = players.begin(); g != players.end(); ++g) \
+		std::vector< std::pair< TPlayerColor, si64 > > stats; \
+		for(auto g = players.begin(); g != players.end(); ++g) \
 		{ \
 			if(g->second.color == 255) \
 				continue; \
@@ -2262,7 +2303,7 @@ void CGameState::obtainPlayersStats(SThievesGuildInfo & tgi, int level)
 		tgi.FIELD = statsHLP::getRank(stats); \
 	}
 
-	for(std::map<ui8, PlayerState>::const_iterator g = players.begin(); g != players.end(); ++g)
+	for(auto g = players.begin(); g != players.end(); ++g)
 	{
 		if(g->second.color != 255)
 			tgi.playerColors.push_back(g->second.color);
@@ -2275,7 +2316,7 @@ void CGameState::obtainPlayersStats(SThievesGuildInfo & tgi, int level)
 		//num of heroes
 		FILL_FIELD(numOfHeroes, g->second.heroes.size())
 		//best hero's portrait
-		for(std::map<ui8, PlayerState>::const_iterator g = players.begin(); g != players.end(); ++g)
+		for(auto g = players.cbegin(); g != players.cend(); ++g)
 		{
 			if(g->second.color == 255)
 				continue;
@@ -2320,7 +2361,7 @@ void CGameState::obtainPlayersStats(SThievesGuildInfo & tgi, int level)
 	}
 	if(level >= 9) //personality
 	{
-		for(std::map<ui8, PlayerState>::const_iterator g = players.begin(); g != players.end(); ++g)
+		for(auto g = players.cbegin(); g != players.cend(); ++g)
 		{
 			if(g->second.color == 255) //do nothing for neutral player
 				continue;
@@ -2338,7 +2379,7 @@ void CGameState::obtainPlayersStats(SThievesGuildInfo & tgi, int level)
 	if(level >= 10) //best creature
 	{
 		//best creatures belonging to player (highest AI value)
-		for(std::map<ui8, PlayerState>::const_iterator g = players.begin(); g != players.end(); ++g)
+		for(auto g = players.cbegin(); g != players.cend(); ++g)
 		{
 			if(g->second.color == 255) //do nothing for neutral player
 				continue;
@@ -2409,8 +2450,8 @@ int CGameState::lossCheck( ui8 player ) const
 bmap<ui32, ConstTransitivePtr<CGHeroInstance> > CGameState::unusedHeroesFromPool()
 {
 	bmap<ui32, ConstTransitivePtr<CGHeroInstance> > pool = hpool.heroesPool;
-	for ( std::map<ui8, PlayerState>::iterator i = players.begin() ; i != players.end();i++)
-		for(std::vector< ConstTransitivePtr<CGHeroInstance> >::iterator j = i->second.availableHeroes.begin(); j != i->second.availableHeroes.end(); j++)
+	for ( auto i = players.cbegin() ; i != players.cend();i++)
+		for(auto j = i->second.availableHeroes.cbegin(); j != i->second.availableHeroes.cend(); j++)
 			if(*j)
 				pool.erase((**j).subID);
 
@@ -2438,7 +2479,7 @@ void CGameState::deserializationFix()
 
 void CGameState::buildGlobalTeamPlayerTree()
 {
-	for(std::map<ui8, TeamState>::iterator k=teams.begin(); k!=teams.end(); ++k)
+	for(auto k=teams.begin(); k!=teams.end(); ++k)
 	{
 		TeamState *t = &k->second;
 		t->attachTo(&globalEffects);

@@ -12,8 +12,7 @@
 #include "CGameInfo.h"
 #include "CHeroWindow.h"
 #include "CMessage.h"
-#include "CConfigHandler.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "BattleInterface/CCreatureAnimation.h"
 #include "CPlayerInterface.h"
 #include "Graphics.h"
@@ -86,7 +85,7 @@ void CArmyTooltip::init(const InfoAboutArmy &army)
 			continue;
 		}
 
-		new CAnimImage("CPRSMALL", slot.second.type->idNumber + 2, 0, slotsPos[slot.first].x, slotsPos[slot.first].y);
+		new CAnimImage("CPRSMALL", slot.second.type->iconIndex, 0, slotsPos[slot.first].x, slotsPos[slot.first].y);
 
 		std::string subtitle;
 		if(army.army.isDetailed)
@@ -1244,11 +1243,10 @@ CCreaturePic::CCreaturePic(int x, int y, const CCreature *cre, bool Big, bool An
 	pos.x+=x;
 	pos.y+=y;
 
-	si8 faction = 0;//FIXME: support neutral faction
-	if (vstd::contains(CGI->townh->factions, cre->faction))
-	{
-		faction = cre->faction;
-	}
+	TFaction faction = cre->faction;
+
+	assert(vstd::contains(CGI->townh->factions, cre->faction));
+
 	if(Big)
 		bg = new CPicture(CGI->townh->factions[faction].creatureBg130);
 	else
@@ -1376,15 +1374,16 @@ void CRecruitmentWindow::select(CCreatureCard *card)
 
 		slider->setAmount(maxAmount);
 
-		if(slider->value)
-			slider->moveTo(0);
+		if(slider->value != maxAmount)
+			slider->moveTo(maxAmount);
 		else // if slider already at 0 - emulate call to sliderMoved()
-			sliderMoved(0);
+			sliderMoved(maxAmount);
 
 		costPerTroopValue->createItems(card->creature->cost);
 		totalCostValue->createItems(card->creature->cost);
 
 		costPerTroopValue->set(card->creature->cost);
+		totalCostValue->set(card->creature->cost * maxAmount);
 
 		//Recruit %s
 		title->setTxt(boost::str(boost::format(CGI->generaltexth->tcommands[21]) % card->creature->namePl));
@@ -1532,10 +1531,10 @@ void CRecruitmentWindow::availableCreaturesChanged()
 	//restore selection
 	select(cards[selectedIndex]);
 
-	if(slider->value)
-		slider->moveTo(0);
+	if(slider->value == slider->amount)
+		slider->moveTo(slider->amount);
 	else // if slider already at 0 - emulate call to sliderMoved()
-		sliderMoved(0);
+		sliderMoved(slider->amount);
 }
 
 void CRecruitmentWindow::sliderMoved(int to)
@@ -1793,7 +1792,7 @@ void CObjectListWindow::init(CPicture * titlePic, std::string _title, std::strin
 		titleImage->pos.y =75 + pos.y - titleImage->pos.h/2;
 	}
 	list = new CListBox(boost::bind(&CObjectListWindow::genItem, this, _1), CListBox::DestroyFunc(),
-		Point(15, 152), Point(0, 25), 9, items.size(), 0, 1, Rect(262, -32, 256, 256) );
+		Point(14, 151), Point(0, 25), 9, items.size(), 0, 1, Rect(262, -32, 256, 256) );
 	list->type |= REDRAW_PARENT;
 }
 
@@ -2864,6 +2863,7 @@ void CMarketplaceWindow::updateTraderText()
 CAltarWindow::CAltarWindow(const IMarket *Market, const CGHeroInstance *Hero /*= NULL*/, EMarketMode::EMarketMode Mode)
 	:CTradeWindow((Mode == EMarketMode::CREATURE_EXP ? "ALTARMON.bmp" : "ALTRART2.bmp"), Market, Hero, Mode)
 {
+	OBJ_CONSTRUCTION_CAPTURING_ALL;
 	if(Mode == EMarketMode::CREATURE_EXP)
 	{
 		//%s's Creatures
@@ -3293,14 +3293,15 @@ void CSystemOptionsWindow::setMapScrollingSpeed( int newSpeed )
 }
 
 CSystemOptionsWindow::CSystemOptionsWindow():
-    CWindowObject(PLAYER_COLORED, "SysOpBck")
+    CWindowObject(PLAYER_COLORED, "SysOpBck"),
+    onFullscreenChanged(settings.listen["video"]["fullscreen"])
 {
 	//TODO: translation and\or config file
 	static const std::string fsLabel = "Fullscreen";
 	static const std::string fsHelp  = "{Fullscreen}\n\n If selected, VCMI will run in fullscreen mode, othervice VCMI will run in window";
 	static const std::string cwLabel = "Classic creature window";
 	static const std::string cwHelp  = "{Classic creature window}\n\n Enable original Heroes 3 creature window instead of new window from VCMI";
-	static const std::string rsLabel = "Select resolution";
+	static const std::string rsLabel = "Resolution";
 	static const std::string rsHelp = "{Select resolution}\n\n Change in-game screen resolution. Will only affect adventure map. Game restart required to apply new resolution.";
 
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
@@ -3400,7 +3401,16 @@ CSystemOptionsWindow::CSystemOptionsWindow():
 	newCreatureWin->select(settings["general"]["classicCreatureWindow"].Bool());
 	fullscreen->select(settings["video"]["fullscreen"].Bool());
 
+	onFullscreenChanged([&](const JsonNode &newState){ fullscreen->select(newState.Bool());});
+
 	gameResButton = new CAdventureMapButton("", rsHelp, boost::bind(&CSystemOptionsWindow::selectGameRes, this), 28, 275,"SYSOB12", SDLK_g);
+
+	std::string resText;
+	resText += boost::lexical_cast<std::string>(settings["video"]["screenRes"]["width"].Float());
+	resText += "x";
+	resText += boost::lexical_cast<std::string>(settings["video"]["screenRes"]["height"].Float());
+	gameResLabel = new CLabel(170, 292, FONT_MEDIUM, CENTER, Colors::Jasmine, resText);
+
 }
 
 void CSystemOptionsWindow::selectGameRes()
@@ -3424,9 +3434,8 @@ void CSystemOptionsWindow::selectGameRes()
 
 void CSystemOptionsWindow::setGameRes(int index)
 {
-	config::CConfigHandler::GuiOptionsMap::const_iterator iter = conf.guiOptions.begin();
-	while (index--)
-		iter++;
+	auto iter = conf.guiOptions.begin();
+	std::advance(iter, index);
 
 	//do not set resolution to illegal one (0x0)
 	assert(iter!=conf.guiOptions.end() && iter->first.first > 0 && iter->first.second > 0);
@@ -3434,6 +3443,12 @@ void CSystemOptionsWindow::setGameRes(int index)
 	Settings gameRes = settings.write["video"]["screenRes"];
 	gameRes["width"].Float() = iter->first.first;
 	gameRes["height"].Float() = iter->first.second;
+
+	std::string resText;
+	resText += boost::lexical_cast<std::string>(iter->first.first);
+	resText += "x";
+	resText += boost::lexical_cast<std::string>(iter->first.second);
+	gameResLabel->setTxt(resText);
 }
 
 void CSystemOptionsWindow::toggleReminder(bool on)
@@ -4934,7 +4949,7 @@ CExchangeWindow::CExchangeWindow(si32 hero1, si32 hero2):
 	}
 
 	//buttons
-	quit = new CAdventureMapButton(CGI->generaltexth->tcommands[8], "", boost::bind(&CExchangeWindow::close, this), 732, 567, "IOKAY.DEF", SDLK_RETURN);
+	quit = new CAdventureMapButton(CGI->generaltexth->zelp[600], boost::bind(&CExchangeWindow::close, this), 732, 567, "IOKAY.DEF", SDLK_RETURN);
 	questlogButton[0] = new CAdventureMapButton(CGI->generaltexth->heroscrn[0], "", boost::bind(&CExchangeWindow::questlog,this, 0), 10,  44, "hsbtns4.def");
 	questlogButton[1] = new CAdventureMapButton(CGI->generaltexth->heroscrn[0], "", boost::bind(&CExchangeWindow::questlog,this, 1), 740, 44, "hsbtns4.def");
 
@@ -5090,8 +5105,8 @@ void CTransformerWindow::CItem::update()
 	icon->setFrame(parent->army->getCreature(id)->idNumber + 2);
 }
 
-CTransformerWindow::CItem::CItem(CTransformerWindow * _parent, int _size, int _id):
-	id(_id), size(_size), parent(_parent)
+CTransformerWindow::CItem::CItem(CTransformerWindow * parent, int size, int id):
+	id(id), size(size), parent(parent)
 {
 	OBJ_CONSTRUCTION_CAPTURING_ALL;
 	addUsedEvents(LCLICK);
@@ -5524,7 +5539,7 @@ CThievesGuildWindow::CThievesGuildWindow(const CGObjectInstance * _owner):
 
 	//data for information table:
 	// fields[row][column] = list of id's of players for this box
-	static std::vector< std::vector< ui8 > > SThievesGuildInfo::* fields[] =
+	static std::vector< std::vector< TPlayerColor > > SThievesGuildInfo::* fields[] =
 		{ &SThievesGuildInfo::numOfTowns, &SThievesGuildInfo::numOfHeroes,       &SThievesGuildInfo::gold,
 		  &SThievesGuildInfo::woodOre,    &SThievesGuildInfo::mercSulfCrystGems, &SThievesGuildInfo::obelisks,
 		  &SThievesGuildInfo::artifacts,  &SThievesGuildInfo::army,              &SThievesGuildInfo::income };
@@ -5556,7 +5571,7 @@ CThievesGuildWindow::CThievesGuildWindow(const CGObjectInstance * _owner):
 	{
 		for(int b=0; b<(tgi .* fields[g]).size(); ++b) //by places (1st, 2nd, ...)
 		{
-			std::vector<ui8> &players = (tgi .* fields[g])[b]; //get players with this place in this line
+			std::vector<TPlayerColor> &players = (tgi .* fields[g])[b]; //get players with this place in this line
 
 			//position of box
 			int xpos = 259 + 66 * b;

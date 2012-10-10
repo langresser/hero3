@@ -1054,6 +1054,12 @@ AccessibilityInfo CBattleInfoCallback::getAccesibility() const
 		ret[BattleHex(0, y)] = EAccessibility::SIDE_COLUMN;
 	}
 
+	//gate -> should be before stacks
+	if(battleGetSiegeLevel() > 0 && battleGetWallState(EWallParts::GATE) < 3) //gate is not destroyed
+	{
+		ret[95] = ret[96] = EAccessibility::GATE; //block gate's hexes
+	}
+
 	//tiles occupied by standing stacks
 	BOOST_FOREACH(auto stack, battleAliveStacks())
 	{
@@ -1086,12 +1092,6 @@ AccessibilityInfo CBattleInfoCallback::getAccesibility() const
 			if(battleGetWallState(lockedIfNotDestroyed[b].first) < 3)
 				ret[lockedIfNotDestroyed[b].second] = EAccessibility::DESTRUCTIBLE_WALL;
 		}
-
-		//gate
-		if(battleGetWallState(7) < 3) //if it attacker's unit and gate is not destroyed
-		{
-			ret[95] = ret[96] = EAccessibility::GATE; //block gate's hexes
-		}
 	}
 
 	return ret;
@@ -1106,7 +1106,8 @@ AccessibilityInfo CBattleInfoCallback::getAccesibility(const std::vector<BattleH
 {
 	auto ret = getAccesibility();
 	BOOST_FOREACH(auto hex, accessibleHexes)
-		ret[hex] = EAccessibility::ACCESSIBLE;
+		if(hex.isValid())
+			ret[hex] = EAccessibility::ACCESSIBLE;
 
 	return ret;
 }
@@ -1939,6 +1940,8 @@ std::set<const CStack*> CBattleInfoCallback::getAffectedCreatures(const CSpell *
 			{
 				possibleHexes.erase (hex); //can't hit same place twice
 			}
+			if (!possibleHexes.size()) //not enough targets
+				break;
 			lightningHex = BattleHex::getClosestTile (attackerOwner, destinationTile, possibleHexes);
 		}
 	}
@@ -2196,9 +2199,12 @@ bool AccessibilityInfo::accessible(BattleHex tile, bool doubleWide, bool attacke
 {
 	// All hexes that stack would cover if standing on tile have to be accessible.
 	BOOST_FOREACH(auto hex, CStack::getHexes(tile, doubleWide, attackerOwned))
-		if(!hex.isValid() || at(hex) != EAccessibility::ACCESSIBLE)
+	{
+		const bool markedAccessible = at(hex) == EAccessibility::ACCESSIBLE;
+		const bool gateAccessible = (at(hex) == EAccessibility::GATE) && !attackerOwned; //defender can always step on gate 
+		if(!hex.isValid() || (!markedAccessible && !gateAccessible))
 			return false;
-
+	}
 	return true;
 }
 

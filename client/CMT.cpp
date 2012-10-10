@@ -27,7 +27,7 @@
 #include "../lib/CGeneralTextHandler.h"
 #include "Graphics.h"
 #include "Client.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "../lib/Connection.h"
 #include "../lib/VCMI_Lib.h"
 #include "../lib/VCMIDirs.h"
@@ -595,6 +595,23 @@ void processCommand(const std::string &message)
 		if(mxname == "pim" && LOCPLINT)
 			LOCPLINT->pim->unlock();
 	}
+	else if(cn == "setBattleAI")
+	{
+		std::string fname;
+		readed >> fname;
+		tlog0 << "Will try loading that AI to see if it is correct name...\n";
+		if(auto ai = CDynLibHandler::getNewBattleAI(fname)) //test that given AI is indeed available... heavy but it is easy to make a typo and break the game
+		{
+			delete ai;
+			Settings neutralAI = settings.write["server"]["neutralAI"];
+			neutralAI->String() = fname;
+			tlog0 << "Setting changed, from now the battle ai will be " << fname << "!\n";
+		}
+		else
+		{
+			tlog3 << "Setting not changes, no such AI found!\n";
+		}
+	}
 	else if(client && client->serv && client->serv->connected && LOCPLINT) //send to server
 	{
 		boost::unique_lock<boost::recursive_mutex> un(*LOCPLINT->pim);
@@ -811,8 +828,7 @@ void startGame(StartInfo * options, CConnection *serv/* = NULL*/)
 	SDL_FillRect(screen, 0, 0);
 	if(gOnlyAI)
 	{
-		for(std::map<int, PlayerSettings>::iterator it = options->playerInfos.begin();
-			it != options->playerInfos.end(); ++it)
+		for(auto it = options->playerInfos.begin(); it != options->playerInfos.end(); ++it)
 		{
 			it->second.human = false;
 		}

@@ -187,11 +187,13 @@ class OptionsTab : public CIntObject
 	CPicture *bg;
 public:
 	enum SelType {TOWN, HERO, BONUS};
+
 	struct SelectedBox : public CIntObject //img with current town/hero/bonus
 	{
 		SelType which;
 		ui8 player; //serial nr
 
+		size_t getBonusImageIndex() const;
 		SDL_Surface *getImg() const;
 		const std::string *getText() const;
 
@@ -255,16 +257,16 @@ public:
 	CMenuScreen::EState screenType; //new/save/load#Game
 	const CMapInfo *current;
 	StartInfo sInfo;
-	std::map<ui32, std::string> playerNames; // id of player <-> player name; 0 is reserved as ID of AI "players"
+	std::map<TPlayerColor, std::string> playerNames; // id of player <-> player name; 0 is reserved as ID of AI "players"
 
-	ISelectionScreenInfo(const std::map<ui32, std::string> *Names = NULL);
+	ISelectionScreenInfo(const std::map<TPlayerColor, std::string> *Names = NULL);
 	virtual ~ISelectionScreenInfo();
 	virtual void update(){};
 	virtual void propagateOptions() {};
 	virtual void postRequest(ui8 what, ui8 dir) {};
 	virtual void postChatMessage(const std::string &txt){};
 
-	void setPlayer(PlayerSettings &pset, unsigned player);
+	void setPlayer(PlayerSettings &pset, TPlayerColor player);
 	void updateStartInfo( std::string filename, StartInfo & sInfo, const CMapHeader * mapHeader );
 
 	int getIdOfFirstUnallocatedPlayer(); //returns 0 if none
@@ -294,7 +296,7 @@ public:
 	bool ongoingClosing;
 	ui8 myNameID; //used when networking - otherwise all player are "mine"
 
-	CSelectionScreen(CMenuScreen::EState Type, CMenuScreen::EMultiMode MultiPlayer = CMenuScreen::SINGLE_PLAYER, const std::map<ui32, std::string> *Names = NULL);
+	CSelectionScreen(CMenuScreen::EState Type, CMenuScreen::EMultiMode MultiPlayer = CMenuScreen::SINGLE_PLAYER, const std::map<TPlayerColor, std::string> *Names = NULL);
 	~CSelectionScreen();
 	void toggleTab(CIntObject *tab);
 	void changeSelection(const CMapInfo *to);
@@ -422,6 +424,8 @@ class CBonusSelection : public CIntObject
 	CAdventureMapButton * diffLb, * diffRb; //buttons for changing difficulty
 	void changeDiff(bool increase); //if false, then decrease
 
+
+	void updateStartButtonState(int selected = -1); //-1 -- no bonus is selected
 	//bonus selection
 	void updateBonusSelection();
 	CHighlightableButtonsGroup * bonuses;
@@ -479,6 +483,7 @@ private:
 	std::vector<CPicture*> images;
 
 	CAdventureMapButton* createExitButton(const JsonNode& button);
+
 public:
 	enum CampaignSet {ROE, AB, SOD, WOG};
 

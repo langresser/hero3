@@ -15,7 +15,7 @@
 #include "CPlayerInterface.h"
 //#include "UIFramework/SDL_Extensions.h"
 #include "UIFramework/SDL_Extensions.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "BattleInterface/CCreatureAnimation.h"
 #include "Graphics.h"
 #include "../lib/CArtHandler.h"
@@ -121,7 +121,7 @@ CPlayerInterface::~CPlayerInterface()
 	if(adventureInt)
 	{
 		if(adventureInt->active & CIntObject::KEYBOARD)
-			adventureInt->deactivateKeys();
+			adventureInt->deactivateKeyboard();
 		delete adventureInt;
 		adventureInt = NULL;
 	}
@@ -936,23 +936,32 @@ void CPlayerInterface::showComp(const Component &comp, std::string message)
 void CPlayerInterface::showInfoDialog(const std::string &text, const std::vector<Component*> &components, int soundID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	if (settings["session"]["autoSkip"].Bool() && !LOCPLINT->shiftPressed())
+	{
+		return;
+	}
 	std::vector<CComponent*> intComps;
 	for(int i=0;i<components.size();i++)
 		intComps.push_back(new CComponent(*components[i]));
 	showInfoDialog(text,intComps,soundID);
+
 }
 
 void CPlayerInterface::showInfoDialog(const std::string &text, const std::vector<CComponent*> & components, int soundID, bool delComps)
 {
 	waitWhileDialog();
 
-	stopMovement();
+	if (settings["session"]["autoSkip"].Bool() && !LOCPLINT->shiftPressed())
+	{
+		return;
+	}
 	CInfoWindow *temp = CInfoWindow::create(text, playerID, &components);
 	temp->setDelComps(delComps);
 	if(makingTurn && GH.listInt.size() && LOCPLINT == this)
 	{
 		CCS->soundh->playSound(static_cast<soundBase::soundID>(soundID));
 		showingDialog->set(true);
+		stopMovement(); // interrupt movement to show dialog
 		GH.pushInt(temp);
 	}
 	else
@@ -1255,7 +1264,7 @@ bool CPlayerInterface::moveHero( const CGHeroInstance *h, CGPath path )
 					stillMoveHero.cond.wait(un);
 
 				tlog5 << "Resuming " << __FUNCTION__ << std::endl;
-				if (guarded) // Abort movement if a guard was fought.
+				if (guarded || showingDialog->get() == true) // Abort movement if a guard was fought or there is a dialog to display (Mantis #1136)
 					break;
 			}
 

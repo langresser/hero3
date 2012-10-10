@@ -9,7 +9,7 @@
 #include "../lib/CGeneralTextHandler.h"
 #include "Graphics.h"
 #include "GUIClasses.h"
-#include "CConfigHandler.h"
+#include "../lib/CConfigHandler.h"
 #include "CBitmapHandler.h"
 #include "UIFramework/CIntObjectClasses.h"
 
@@ -28,6 +28,7 @@
 const int COMPONENT_TO_SUBTITLE = 17;
 const int BETWEEN_COMPS_ROWS = 10;
 const int BEFORE_COMPONENTS = 30;
+const int BETWEEN_COMPS = 30;
 const int SIDE_MARGIN = 30;
 
 template <typename T, typename U> std::pair<T,U> max(const std::pair<T,U> &x, const std::pair<T,U> &y)
@@ -435,7 +436,7 @@ void CMessage::drawIWindow(CInfoWindow * ret, std::string text, int player)
 	if (ret->components.size())
 	{
 		curh += BEFORE_COMPONENTS;
-		comps.blitCompsOnSur (_or, 10, curh, ret->bitmap);
+		comps.blitCompsOnSur (_or, BETWEEN_COMPS, curh, ret->bitmap);
 	}
 	if(ret->buttons.size())
 	{
@@ -575,7 +576,7 @@ ComponentsToBlit::ComponentsToBlit(std::vector<CComponent*> & SComps, int maxw, 
 	{
 		ComponentResolved *cur = new ComponentResolved(SComps[i]);
 
-		int toadd = (cur->pos.w + 12 + (_or ? _or->w : 0));
+		int toadd = (cur->pos.w + BETWEEN_COMPS + (_or ? _or->w : 0));
 		if (curw + toadd > maxw)
 		{
 			curr++;

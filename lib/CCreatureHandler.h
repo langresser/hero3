@@ -105,9 +105,10 @@ public:
 			& cost & upgradeNames & upgrades 
 			& fightValue & AIValue & growth & hordeGrowth
 			& ammMin & ammMax & level
-			& abilityText & abilityRefs & animDefName & advMapDef
-			& idNumber & faction
+			& abilityText & abilityRefs & animDefName & advMapDef;
+		h & iconIndex;
 
+		h & idNumber & faction
 			& timeBetweenFidgets & walkAnimationTime & attackAnimationTime & flightAnimationDistance
 			& upperRightMissleOffsetX & rightMissleOffsetX & lowerRightMissleOffsetX & upperRightMissleOffsetY & rightMissleOffsetY & lowerRightMissleOffsetY
 			& missleFrameAngles & troopCountLocationOffset & attackClimaxFrame;
@@ -131,8 +132,6 @@ public:
 	std::set<TCreature> doubledCreatures; //they get double week
 	std::vector<ConstTransitivePtr<CCreature> > creatures; //creature ID -> creature info
 	bmap<std::string,int> nameToID;
-	std::vector<si8> factionAlignments; //1 for good, 0 for neutral and -1 for evil with faction ID as index
-	int factionToTurretCreature[GameConstants::F_NUMBER]; //which creature's animation should be used to dispaly creature in turret while siege
 
 	//stack exp
 	std::map<TBonusType, std::pair<std::string, std::string> > stackBonuses; // bonus => name, description
@@ -155,9 +154,6 @@ public:
 	void loadStackExp(Bonus & b, BonusList & bl, CLegacyConfigParser &parser);
 	int stringToNumber(std::string & s);//help function for parsing CREXPBON.txt
 
-	bool isGood (si8 faction) const;
-	bool isEvil (si8 faction) const;
-
 	int pickRandomMonster(const boost::function<int()> &randGen = 0, int tier = -1) const; //tier <1 - CREATURES_PER_TOWN> or -1 for any
 	void addBonusForTier(int tier, Bonus *b); //tier must be <1-7>
 	void addBonusForAllCreatures(Bonus *b);
@@ -168,7 +164,7 @@ public:
 	template <typename Handler> void serialize(Handler &h, const int version)
 	{
 		//TODO: should be optimized, not all these informations needs to be serialized (same for ccreature)
-		h & notUsedMonsters & creatures & nameToID & factionToTurretCreature;
+		h & notUsedMonsters & creatures & nameToID;
 		h & stackBonuses & expRanks & maxExpPerBattle & expAfterUpgrade;
 		h & factionCommanders & skillLevels & skillRequirements & commanderLevelPremy;
 		h & allCreatures;

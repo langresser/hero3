@@ -32,6 +32,9 @@ class CGTownInstance;
 class IModableArt;
 class IQuestObject;
 
+class CInputStream;
+typedef std::unique_ptr<CInputStream> TInputStreamPtr;
+
 /// Struct which describes a single terrain tile
 struct DLL_LINKAGE TerrainTile
 {
@@ -114,19 +117,11 @@ struct DLL_LINKAGE PlayerInfo
 
 	si8 defaultCastle() const
 	{
-		si8 ret = -2;
-		for (int j = 0; j < GameConstants::F_NUMBER  &&  ret != -1; j++) //we start with none and find matching faction. if more than one, then set to random
-		{
-			if(vstd::contains(allowedFactions, j))
-			{
-				if (ret >= 0) //we've already assigned a castle and another one is possible -> set random and let player choose
-					ret = -1; //breaks
+		assert(!allowedFactions.empty()); // impossible?
 
-				if (ret == -2) //first available castle - pick
-					ret = j;
-			}
-		}
-		return ret;
+		if (allowedFactions.size() == 1)
+			return *allowedFactions.begin(); //only one faction s available - pick it
+		return -1; // set to random
 	}
 	si8 defaultHero() const
 	{
@@ -332,7 +327,7 @@ struct DLL_LINKAGE Mapa : public CMapHeader
 
 	CArtifactInstance *createArt(int aid, int spellID = -1);
 	void addNewArtifactInstance(CArtifactInstance *art);
-	void addQuest (IQuestObject *quest);
+	void addQuest (CGObjectInstance *obj);
 	void eraseArtifactInstance(CArtifactInstance *art);
 
 
@@ -349,11 +344,13 @@ struct DLL_LINKAGE Mapa : public CMapHeader
 	bool isInTheMap(const int3 &pos) const;
 	bool isWaterTile(const int3 &pos) const; //out-of-pos safe
 
+	static TInputStreamPtr getMapStream(std::string URI);
+
 	template <typename Handler> void serialize(Handler &h, const int formatVersion)
 	{
 		h & static_cast<CMapHeader&>(*this);
 		h & rumors & allowedSpell & allowedAbilities & allowedArtifact & allowedHeroes & events & grailPos;
-		h & artInstances; //hopefully serialization is now automagical?
+		h & artInstances & quests; //hopefully serialization is now automagical?
 		h & questIdentifierToId;
 
 		//TODO: viccondetails

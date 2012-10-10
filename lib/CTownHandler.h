@@ -3,7 +3,7 @@
 #include "ConstTransitivePtr.h"
 #include "ResourceSet.h"
 #include "int3.h"
-//#include "GameConstants.h"
+#include "GameConstants.h"
 
 /*
  * CTownHandler.h, part of VCMI engine
@@ -29,7 +29,8 @@ class DLL_LINKAGE CBuilding
 	std::string description;
 
 public:
-	si32 tid, bid; //town ID and structure ID
+	TFaction tid;
+	si32 bid; //town ID and structure ID
 	TResources resources;
 
 	std::set<BuildingType> requirements; /// set of required buildings, includes upgradeOf;
@@ -82,29 +83,27 @@ struct DLL_LINKAGE CStructure
 
 class DLL_LINKAGE CTown
 {
-	std::string name;
-	std::string description;
+public:
+	TFaction typeID;//same as CFaction::factionID
 
 	std::vector<std::string> names; //names of the town instances
 
-public:
-	ui32 typeID;//also works as factionID
-
 	/// level -> list of creatures on this tier
 	// TODO: replace with pointers to CCreature
-	std::vector<std::vector<si32> > creatures;
+	std::vector<std::vector<TCreature> > creatures;
 
 	bmap<int, ConstTransitivePtr<CBuilding> > buildings;
 
 	// should be removed at least from configs in favour of auto-detection
 	std::map<int,int> hordeLvl; //[0] - first horde building creature level; [1] - second horde building (-1 if not present)
 	ui32 mageLevel; //max available mage guild level
-	int bonus; //pic number
 	ui16 primaryRes, warMachine;
 
 	// Client-only data. Should be moved away from lib
 	struct ClientInfo
 	{
+		struct Point { si32 x; si32 y;};
+
 		//icons [fort is present?][build limit reached?] -> index of icon in def files
 		int icons[2][2];
 
@@ -120,18 +119,24 @@ public:
 		/// NOTE: index in vector is meaningless. Vector used instead of list for a bit faster access
 		std::vector<ConstTransitivePtr<CStructure> > structures;
 
+		std::string advMapVillage;
+		std::string advMapCastle;
+		std::string advMapCapitol;
+
+		std::string siegePrefix;
+		std::vector<Point> siegePositions;
+		TCreature siegeShooter; // shooter creature ID
+		si32 siegeShooterCropHeight; //trim height for shooters in turrets
+
 		template <typename Handler> void serialize(Handler &h, const int version)
 		{
 			h & icons & musicTheme & townBackground & guildWindow & buildingsIcons & hallBackground & hallSlots & structures;
 		}
 	} clientInfo;
 
-	const std::vector<std::string> & Names() const;
-	const std::string & Name() const;
-
 	template <typename Handler> void serialize(Handler &h, const int version)
 	{
-		h & name & names & typeID & creatures & buildings & hordeLvl & mageLevel & bonus
+		h & names & typeID & creatures & buildings & hordeLvl & mageLevel
 			& primaryRes & warMachine & clientInfo;
 	}
 
@@ -154,10 +159,12 @@ struct DLL_LINKAGE SPuzzleInfo
 class CFaction
 {
 public:
-	std::string name; //reference name, usually lower case
-	ui32 factionID;
+	std::string name; //town name, by default - from TownName.txt
 
-	ui32 nativeTerrain;
+	TFaction factionID;
+
+	ui8 nativeTerrain;
+	ui8 alignment; // uses EAlignment enum
 
 	std::string creatureBg120;
 	std::string creatureBg130;
@@ -182,6 +189,7 @@ class DLL_LINKAGE CTownHandler
 
 	/// loads town hall vector (hallSlots)
 	void loadTownHall(CTown &town, const JsonNode & source);
+	void loadSiegeScreen(CTown &town, const JsonNode & source);
 
 	void loadClientData(CTown &town, const JsonNode & source);
 
@@ -194,8 +202,8 @@ class DLL_LINKAGE CTownHandler
 	void loadLegacyData(JsonNode & dest);
 
 public:
-	std::map<ui32, CTown> towns;
-	std::map<ui32, CFaction> factions;
+	std::map<TFaction, CTown> towns;
+	std::map<TFaction, CFaction> factions;
 
 	CTownHandler(); //c-tor, set pointer in VLC to this
 

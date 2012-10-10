@@ -86,7 +86,7 @@ void CModHandler::loadConfigFromFile (std::string name)
 		const JsonNode *value = &config["creatures"];
 		BOOST_FOREACH (auto creature, value->Vector())
 		{
-			auto cre = loadCreature (creature); //FIXME: unused variable 'cre' //create and push back creature
+			loadCreature (creature);//create and push back creature
 		}
 	}
 }
@@ -114,7 +114,11 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	const JsonNode & name = node["name"];
 	cre->nameSing = name["singular"].String();
 	cre->namePl = name["plural"].String();
-	cre->nameRef = cre->nameSing;
+	value = &name["reference"];
+	if (!value->isNull())
+		cre->nameRef = value->String();
+	else
+		cre->nameRef = cre->nameSing;
 
 	cre->cost = Res::ResourceSet(node["cost"]);
 
@@ -124,6 +128,7 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	cre->fightValue = node["fightValue"].Float();
 	cre->AIValue = node["aiValue"].Float();
 	cre->growth = node["growth"].Float();
+	cre->hordeGrowth = node["horde"].Float(); // Needed at least until configurable buildings
 
 	cre->addBonus(node["hitPoints"].Float(), Bonus::STACK_HEALTH);
 	cre->addBonus(node["speed"].Float(), Bonus::STACKS_SPEED);
@@ -155,7 +160,46 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 
 	BOOST_FOREACH (const JsonNode &bonus, node["abilities"].Vector())
 	{
-		cre->addNewBonus(ParseBonus(bonus));
+		auto b = ParseBonus(bonus);
+		b->source = Bonus::CREATURE_ABILITY;
+		b->duration = Bonus::PERMANENT;
+		cre->addNewBonus(b);
+	}
+	BOOST_FOREACH (const JsonNode &exp, node["stackExperience"].Vector())
+	{
+		auto bonus = ParseBonus (exp["bonus"]);
+		bonus->source = Bonus::STACK_EXPERIENCE;
+		bonus->duration = Bonus::PERMANENT;
+		const JsonVector &values = exp["values"].Vector();
+		int lowerLimit = 1;//, upperLimit = 255;
+		if (values[0].getType() == JsonNode::JsonType::DATA_BOOL)
+		{
+			BOOST_FOREACH (const JsonNode &val, values)
+			{
+				if (val.Bool() == true)
+				{
+					bonus->limiter = make_shared<RankRangeLimiter>(RankRangeLimiter(lowerLimit));
+					cre->addNewBonus (new Bonus(*bonus)); //bonuses must be unique objects
+					break; //TODO: allow bonuses to turn off?
+				}
+				++lowerLimit;
+			}
+		}
+		else
+		{
+			int lastVal = 0;
+			BOOST_FOREACH (const JsonNode &val, values)
+			{
+				if (val.Float() != lastVal)
+				{
+					bonus->val = val.Float() - lastVal;
+					bonus->limiter.reset (new RankRangeLimiter(lowerLimit));
+					cre->addNewBonus (new Bonus(*bonus));
+				}
+				lastVal = val.Float();
+				++lowerLimit;
+			}
+		}
 	}
 	//graphics
 
@@ -170,8 +214,21 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	cre->attackAnimationTime = animationTime["attack"].Float();
 	cre->flightAnimationDistance = animationTime["flight"].Float(); //?
 	//TODO: background?
-	const JsonNode & missle = graphics["missle"];
-	const JsonNode & offsets = missle["offset"];
+	const JsonNode & missile = graphics["missile"];
+	//TODO: parse
+	value = &missile["projectile"];
+	if (value->isNull())
+		cre->projectile = "PLCBOWX.DEF";
+	else
+		cre->projectile = value->String();
+
+	value = &missile["spinning"];
+	if (value->isNull())
+		cre->projectileSpin = false; //no animation by default to avoid crash
+	else
+		cre->projectileSpin = value->Bool();
+
+	const JsonNode & offsets = missile["offset"];
 	cre->upperRightMissleOffsetX = offsets["upperX"].Float();
 	cre->upperRightMissleOffsetY = offsets["upperY"].Float();
 	cre->rightMissleOffsetX = offsets["middleX"].Float();
@@ -179,16 +236,12 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 	cre->lowerRightMissleOffsetX = offsets["lowerX"].Float();
 	cre->lowerRightMissleOffsetY = offsets["lowerY"].Float();
 	int i = 0;
-	BOOST_FOREACH (auto & angle, missle["frameAngles"].Vector())
+	BOOST_FOREACH (auto & angle, missile["frameAngles"].Vector())
 	{
 		cre->missleFrameAngles[i++] = angle.Float();
 	}
 	cre->advMapDef = graphics["map"].String();
 	cre->iconIndex = graphics["iconIndex"].Float();
-	
-	//TODO: parse
-	cre->projectile = "PLCBOWX.DEF";
-	cre->projectileSpin = false;
 
 	const JsonNode & sounds = node["sound"];
 
@@ -206,6 +259,9 @@ CCreature * CModHandler::loadCreature (const JsonNode &node)
 #undef GET_SOUND_VALUE
 
 	creatures.push_back(cre);
+
+	tlog3 << "Added new creature " << cre->nameRef << "\n";
+
 	return cre;
 }
 void CModHandler::recreateAdvMapDefs()
@@ -228,6 +284,10 @@ void CModHandler::recreateHandlers()
 	BOOST_FOREACH (auto creature, creatures)
 	{
 		creature->idNumber = VLC->creh->creatures.size(); //calculate next index for every used creature
+		BOOST_FOREACH (auto bonus, creature->getBonusList())
+		{
+			bonus->sid = creature->idNumber;
+		}
 		VLC->creh->creatures.push_back (creature);
 		//TODO: use refName?
 		//if (creature->nameRef.size())
