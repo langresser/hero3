@@ -335,6 +335,7 @@
     <ClCompile Include="CCastleInterface.cpp" />
     <ClCompile Include="CCreatureWindow.cpp" />
     <ClCompile Include="CDefHandler.cpp" />
+    <ClCompile Include="CGameHandler.cpp" />
     <ClCompile Include="CGameInfo.cpp" />
     <ClCompile Include="CHeroWindow.cpp" />
     <ClCompile Include="CKingdomInterface.cpp" />
@@ -351,6 +352,7 @@
     <ClCompile Include="GUIClasses.cpp" />
     <ClCompile Include="mapHandler.cpp" />
     <ClCompile Include="NetPacksClient.cpp" />
+    <ClCompile Include="NetPacksServer.cpp" />
     <ClCompile Include="StdInc.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -382,6 +384,7 @@
     <ClInclude Include="CCastleInterface.h" />
     <ClInclude Include="CCreatureWindow.h" />
     <ClInclude Include="CDefHandler.h" />
+    <ClInclude Include="CGameHandler.h" />
     <ClInclude Include="CGameInfo.h" />
     <ClInclude Include="CHeroWindow.h" />
     <ClInclude Include="CKingdomInterface.h" />

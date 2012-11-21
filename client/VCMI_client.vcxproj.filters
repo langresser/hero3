@@ -36,6 +36,8 @@
     <ClCompile Include="UIFramework\Geometries.cpp" />
     <ClCompile Include="UIFramework\SDL_Extensions.cpp" />
     <ClCompile Include="CQuestLog.cpp" />
+    <ClCompile Include="CGameHandler.cpp" />
+    <ClCompile Include="NetPacksServer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Global.h" />
@@ -80,6 +82,7 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClInclude Include="mapHandler.h" />
+    <ClInclude Include="CGameHandler.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="VCMI_client.rc" />
